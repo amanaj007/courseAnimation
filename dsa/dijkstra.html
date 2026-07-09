@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dijkstra's Algorithm — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #dijk-svg { width:100%; overflow:visible; }
+    .dist-table { display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .dist-cell { background:var(--surface2); border:1.5px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.7rem; font-size:0.8rem; text-align:center; min-width:56px; }
+    .dist-cell .node-lbl { color:var(--text-muted); font-size:0.65rem; display:block; }
+    .dist-cell .dist-val { color:var(--text); font-weight:700; }
+    .dist-cell.current  { border-color:#ffd700; }
+    .dist-cell.visited  { border-color:#43e97b; }
+    .dist-cell.updated  { border-color:#6c63ff; }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #dijk-svg { min-width:420px; }
+      .dist-cell { min-width:40px; padding:0.25rem 0.4rem; font-size:0.72rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Dijkstra's Shortest Path</h1>
+  <p class="subtitle">Greedy algorithm · O((V+E) log V) · Weighted graph · No negative edges</p>
+  <div class="stage" style="flex-direction:column; gap:0.5rem; min-height:300px; overflow:visible;">
+    <svg id="dijk-svg" viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div class="dist-table" id="dist-table"></div>
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-run">▶ Run</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Run</strong> to find shortest paths from node <strong>A</strong>.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS  = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('dijk-svg');
+
+  const NODES = [
+    { id:'A', x:80,  y:125 },
+    { id:'B', x:220, y:50  },
+    { id:'C', x:220, y:200 },
+    { id:'D', x:380, y:50  },
+    { id:'E', x:380, y:200 },
+    { id:'F', x:540, y:125 },
+    { id:'G', x:640, y:125 },
+  ];
+  const EDGES = [
+    ['A','B',4],['A','C',2],
+    ['B','D',5],['B','C',1],
+    ['C','E',8],['C','B',1],
+    ['D','F',2],['D','E',2],
+    ['E','F',3],
+    ['F','G',1],
+  ];
+
+  const INF = Infinity;
+  let steps=[], stepIdx=0, playing=false, playTimer=null, looping=false;
+  let nodeState={}, edgeState={}, dist={}, prev={};
+
+  function buildAdj() {
+    const adj={};
+    NODES.forEach(n=>adj[n.id]={});
+    EDGES.forEach(([a,b,w])=>{ adj[a][b]=w; adj[b][a]=w; });
+    return adj;
+  }
+
+  function buildSteps() {
+    const adj=buildAdj();
+    const s=[], visited=new Set();
+    const d={}, p={};
+    NODES.forEach(n=>{ d[n.id]=INF; p[n.id]=null; });
+    d['A']=0;
+    const pq=NODES.map(n=>n.id);
+
+    while (pq.length) {
+      pq.sort((a,b)=>d[a]-d[b]);
+      const u=pq.shift();
+      if (d[u]===INF) break;
+      visited.add(u);
+      s.push({ type:'visit', node:u, dist:{...d}, prev:{...p}, visited:[...visited],
+        label:`Visit <strong>${u}</strong> (dist=${d[u]}). Relax neighbors.` });
+
+      for (const [v,w] of Object.entries(adj[u])) {
+        if (visited.has(v)) continue;
+        s.push({ type:'relax', node:u, neighbor:v, weight:w, dist:{...d}, prev:{...p}, visited:[...visited],
+          label:`Relax edge ${u}→${v} (w=${w}): ${d[u]}+${w}=${d[u]+w} vs current ${d[v]===INF?'∞':d[v]}` });
+        if (d[u]+w < d[v]) {
+          d[v]=d[u]+w; p[v]=u;
+          s.push({ type:'update', node:u, neighbor:v, newDist:d[v], dist:{...d}, prev:{...p}, visited:[...visited],
+            label:`Updated dist[${v}] = <strong>${d[v]}</strong> via ${u}` });
+        }
+      }
+    }
+    s.push({ type:'done', dist:{...d}, prev:{...p}, visited:[...visited], label:'All shortest paths found!' });
+    return s;
+  }
+
+  function nodeColor(id, step) {
+    if (!step) return '#2e3148';
+    const vs=step.visited||[];
+    if (step.node===id) return '#ffd700';
+    if (step.neighbor===id && step.type==='update') return '#6c63ff';
+    if (vs.includes(id)) return '#43e97b';
+    return '#2e3148';
+  }
+  function nodeStroke(id, step) {
+    if (!step) return '#2e3148';
+    if (step.node===id) return '#ffd700';
+    if (step.neighbor===id) return '#6c63ff';
+    if ((step.visited||[]).includes(id)) return '#43e97b';
+    return '#2e3148';
+  }
+  function nodeTextColor(id, step) {
+    if (!step) return '#e8eaf6';
+    if (step.node===id) return '#ffd700';
+    if (step.neighbor===id) return '#a09cf7';
+    if ((step.visited||[]).includes(id)) return '#43e97b';
+    return '#e8eaf6';
+  }
+
+  function pathEdges(prev) {
+    const set=new Set();
+    NODES.forEach(n=>{
+      if (prev[n.id]) set.add(`${prev[n.id]}-${n.id}`);
+    });
+    return set;
+  }
+
+  function drawGraph(step) {
+    svg.innerHTML='';
+    const defs=document.createElementNS(NS,'defs');
+    const mk=document.createElementNS(NS,'marker');
+    mk.setAttribute('id','dar'); mk.setAttribute('markerWidth','7'); mk.setAttribute('markerHeight','7');
+    mk.setAttribute('refX','5'); mk.setAttribute('refY','3'); mk.setAttribute('orient','auto');
+    const pth=document.createElementNS(NS,'path'); pth.setAttribute('d','M0,0 L0,6 L7,3 z'); pth.setAttribute('fill','#2e3148');
+    mk.appendChild(pth); defs.appendChild(mk); svg.appendChild(defs);
+
+    const pe = step ? pathEdges(step.prev||{}) : new Set();
+
+    EDGES.forEach(([a,b,w])=>{
+      const na=NODES.find(n=>n.id===a), nb=NODES.find(n=>n.id===b);
+      const isPath = pe.has(`${a}-${b}`) || pe.has(`${b}-${a}`);
+      const isActive = step && ((step.node===a&&step.neighbor===b)||(step.node===b&&step.neighbor===a));
+      const color = isActive?'#ffd700':isPath?'#43e97b':'#2e3148';
+      const sw    = isActive||isPath?2.5:1.5;
+      const dx=nb.x-na.x, dy=nb.y-na.y, len=Math.sqrt(dx*dx+dy*dy);
+      const mx=(na.x+nb.x)/2, my=(na.y+nb.y)/2;
+      const line=document.createElementNS(NS,'line');
+      line.setAttribute('x1',na.x); line.setAttribute('y1',na.y);
+      line.setAttribute('x2',nb.x); line.setAttribute('y2',nb.y);
+      line.setAttribute('stroke',color); line.setAttribute('stroke-width',sw);
+      svg.appendChild(line);
+      const wlbl=document.createElementNS(NS,'text');
+      wlbl.setAttribute('x',mx+(-dy/len)*12); wlbl.setAttribute('y',my+(dx/len)*12);
+      wlbl.setAttribute('text-anchor','middle'); wlbl.setAttribute('dominant-baseline','middle');
+      wlbl.setAttribute('fill',isActive?'#ffd700':'#8b8fa8'); wlbl.setAttribute('font-size','10');
+      wlbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif"); wlbl.setAttribute('font-weight','700');
+      wlbl.textContent=w; svg.appendChild(wlbl);
+    });
+
+    NODES.forEach(n=>{
+      const fill = nodeColor(n.id,step), stroke = nodeStroke(n.id,step), tc = nodeTextColor(n.id,step);
+      const circ=document.createElementNS(NS,'circle');
+      circ.setAttribute('cx',n.x); circ.setAttribute('cy',n.y); circ.setAttribute('r','22');
+      circ.setAttribute('fill',fill); circ.setAttribute('stroke',stroke); circ.setAttribute('stroke-width','2.5');
+      const txt=document.createElementNS(NS,'text');
+      txt.setAttribute('x',n.x); txt.setAttribute('y',n.y-3);
+      txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','middle');
+      txt.setAttribute('fill',tc); txt.setAttribute('font-size','13'); txt.setAttribute('font-weight','700');
+      txt.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif"); txt.textContent=n.id;
+      const d=step?step.dist[n.id]:INF;
+      const dlbl=document.createElementNS(NS,'text');
+      dlbl.setAttribute('x',n.x); dlbl.setAttribute('y',n.y+10);
+      dlbl.setAttribute('text-anchor','middle'); dlbl.setAttribute('fill','#8b8fa8');
+      dlbl.setAttribute('font-size','9'); dlbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
+      dlbl.textContent=d===INF?'∞':d;
+      svg.appendChild(circ); svg.appendChild(txt); svg.appendChild(dlbl);
+    });
+  }
+
+  function drawDistTable(step) {
+    const wrap=document.getElementById('dist-table');
+    wrap.innerHTML='';
+    NODES.forEach(n=>{
+      const d=step?step.dist[n.id]:INF;
+      const cell=document.createElement('div');
+      cell.className='dist-cell'+(step&&step.node===n.id?' current':step&&(step.visited||[]).includes(n.id)?' visited':step&&step.neighbor===n.id&&step.type==='update'?' updated':'');
+      cell.innerHTML=`<span class="node-lbl">${n.id}</span><span class="dist-val">${d===INF?'∞':d}</span>`;
+      wrap.appendChild(cell);
+    });
+  }
+
+  function renderStep(s) {
+    document.getElementById('info-box').innerHTML=s.label;
+    drawGraph(s); drawDistTable(s);
+    if (s.type==='done') {
+      gsap.to(svg.querySelectorAll('circle'),{ attr:{r:'24'}, duration:0.3, yoyo:true, repeat:1, ease:'power2.inOut' });
+    }
+  }
+
+  function reset() {
+    clearTimeout(playTimer); playing=false; looping=false; steps=[]; stepIdx=0;
+    document.getElementById('btn-run').textContent='▶ Run';
+    document.getElementById('btn-loop').textContent='↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    drawGraph(null); drawDistTable(null);
+    document.getElementById('info-box').innerHTML='Press <strong>Run</strong> to find shortest paths from node <strong>A</strong>.';
+  }
+
+  function init() { if(!steps.length){ steps=buildSteps(); stepIdx=0; } }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  document.getElementById('btn-step').addEventListener('click', () => {
+    clearTimeout(playTimer); playing=false; document.getElementById('btn-run').textContent='▶ Run';
+    init(); if(stepIdx<steps.length) renderStep(steps[stepIdx++]);
+  });
+  document.getElementById('btn-run').addEventListener('click', () => {
+    if(playing){ clearTimeout(playTimer); playing=false; document.getElementById('btn-run').textContent='▶ Run'; return; }
+    if(!steps.length||stepIdx>=steps.length){ reset(); init(); }
+    playing=true; document.getElementById('btn-run').textContent='⏸ Pause';
+    function next() {
+      if(!playing){ document.getElementById('btn-run').textContent='▶ Run'; return; }
+      if(stepIdx>=steps.length){
+        if(looping){ playTimer=setTimeout(()=>{ reset(); init(); playing=true; document.getElementById('btn-run').textContent='⏸ Pause'; next(); },1800); }
+        else{ playing=false; document.getElementById('btn-run').textContent='▶ Run'; }
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer=setTimeout(next,900);
+    }
+    next();
+  });
+  document.getElementById('btn-loop').addEventListener('click', ()=>{
+    looping=!looping;
+    document.getElementById('btn-loop').textContent=looping?'↻ Loop: On':'↻ Loop: Off';
+    document.getElementById('btn-loop').classList.toggle('primary',looping);
+  });
+
+  reset();
+</script>
+</body>
+</html>

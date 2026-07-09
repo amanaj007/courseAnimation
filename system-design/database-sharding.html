@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Database Sharding — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #shard-svg { min-width:380px; }
+      .algo-row, .partition-row { flex-wrap:wrap; gap:0.4rem; justify-content:center; }
+    }
+  </style>
+  <style>
+    #shard-svg { width:100%; overflow:visible; }
+    .algo-legend { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem; justify-content:center; }
+    .algo-btn { padding:0.35rem 0.9rem; border-radius:999px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.8rem; cursor:pointer; transition:all 0.2s; }
+    .algo-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .shard-bars { display:flex; gap:1rem; justify-content:center; margin-top:1rem; flex-wrap:wrap; }
+    .shard-bar { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .shard-bar-label { font-size:0.75rem; color:var(--text-muted); }
+    .shard-bar-track { width:80px; height:80px; background:var(--surface2); border:1px solid var(--border);
+      border-radius:6px; position:relative; overflow:hidden; display:flex; align-items:flex-end; }
+    .shard-bar-fill { width:100%; border-radius:0 0 4px 4px; transition:height 0.4s; }
+    .shard-bar-count { font-size:0.8rem; font-weight:700; color:var(--text); }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Database Sharding</h1>
+  <p class="subtitle">Horizontal partitioning across multiple database shards</p>
+
+  <div class="stage" style="flex-direction:column; gap:1rem; min-height:280px;">
+    <svg id="shard-svg" viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="algo-legend">
+    <button class="algo-btn active" data-strategy="range">Range Sharding</button>
+    <button class="algo-btn" data-strategy="hash">Hash Sharding</button>
+    <button class="algo-btn" data-strategy="dir">Directory Sharding</button>
+  </div>
+
+  <div class="shard-bars" id="shard-bars"></div>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-send">Send Query (User ID)</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Send Query</strong> to route a user lookup to the correct shard.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('shard-svg');
+
+  const SHARDS = [
+    { id:0, label:'Shard A', color:'#6c63ff', x:160, y:160, range:'IDs 1–33' },
+    { id:1, label:'Shard B', color:'#ff6584', x:360, y:160, range:'IDs 34–66' },
+    { id:2, label:'Shard C', color:'#43e97b', x:560, y:160, range:'IDs 67–99' },
+  ];
+  const ROUTER = { x:360, y:50, w:140, h:50 };
+  const CLIENT = { x:360, y:-10, w:100, h:36 };
+
+  let strategy = 'range';
+  let shardCounts = [0, 0, 0];
+  let totalQ = 0;
+  let autoTimer = null, autoOn = false, animating = false;
+
+  const strategyInfo = {
+    range: 'Range sharding: routes by user ID range. Simple but can be unbalanced.',
+    hash:  'Hash sharding: hash(userID) % 3. Uniform distribution.',
+    dir:   'Directory sharding: a lookup table maps user → shard. Most flexible.',
+  };
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function drawBase() {
+    svg.innerHTML = '';
+    // router node
+    svg.appendChild(el('rect', { x: ROUTER.x - ROUTER.w/2, y: ROUTER.y, width:ROUTER.w, height:ROUTER.h,
+      rx:'10', ry:'10', fill:'#1a1d27', stroke:'#6c63ff', 'stroke-width':'2' }));
+    svg.appendChild(el('text', { x:ROUTER.x, y:ROUTER.y+17, 'text-anchor':'middle', 'dominant-baseline':'middle',
+      fill:'#a09cf7', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Query Router'));
+    svg.appendChild(el('text', { x:ROUTER.x, y:ROUTER.y+33, 'text-anchor':'middle', 'dominant-baseline':'middle',
+      fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, strategy === 'range' ? 'Range strategy' : strategy === 'hash' ? 'Hash strategy' : 'Directory strategy'));
+
+    // shard lines
+    SHARDS.forEach(s => {
+      svg.appendChild(el('line', { x1:ROUTER.x, y1:ROUTER.y+ROUTER.h, x2:s.x, y2:s.y-30,
+        stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3' }));
+    });
+
+    // shard nodes
+    SHARDS.forEach((s, i) => {
+      const g = el('g', { id:`shard-g-${i}` });
+      g.appendChild(el('rect', { x:s.x-55, y:s.y-30, width:110, height:60, rx:'10', ry:'10',
+        fill:'#1a1d27', stroke:s.color, 'stroke-width':'1.5', id:`shard-rect-${i}` }));
+      g.appendChild(el('text', { x:s.x, y:s.y-8, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:s.color, 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, s.label));
+      g.appendChild(el('text', { x:s.x, y:s.y+10, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif",
+        id:`shard-range-${i}` }, s.range));
+      g.appendChild(el('text', { x:s.x, y:s.y+24, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif",
+        id:`shard-count-${i}` }, `${shardCounts[i]} queries`));
+      svg.appendChild(g);
+    });
+
+    // packet placeholder
+    svg.appendChild(el('circle', { id:'shard-packet', cx:'-50', cy:'-50', r:'8', fill:'#ffd700', opacity:'0' }));
+    svg.appendChild(el('text', { id:'shard-packet-label', x:'-50', y:'-35',
+      'text-anchor':'middle', fill:'#ffd700', 'font-size':'10', 'font-weight':'700',
+      'font-family':"'Segoe UI',system-ui,sans-serif", opacity:'0' }, ''));
+  }
+
+  function routeShard(uid) {
+    if (strategy === 'range') return uid <= 33 ? 0 : uid <= 66 ? 1 : 2;
+    if (strategy === 'hash')  return uid % 3;
+    return uid % 2 === 0 ? 0 : uid % 3 === 0 ? 2 : 1;
+  }
+
+  function sendQuery() {
+    if (animating) return;
+    animating = true;
+    const uid = Math.floor(Math.random() * 99) + 1;
+    const sIdx = routeShard(uid);
+    const s = SHARDS[sIdx];
+    const pkt = document.getElementById('shard-packet');
+    const lbl = document.getElementById('shard-packet-label');
+
+    gsap.set(pkt, { attr:{ cx: ROUTER.x, cy: ROUTER.y }, opacity:1, fill:'#ffd700' });
+    gsap.set(lbl, { attr:{ x: ROUTER.x, y: ROUTER.y - 14 }, opacity:1 });
+    lbl.textContent = `uid=${uid}`;
+
+    gsap.to([pkt, lbl], {
+      attr:{ cx: s.x, cy: s.y - 10, x: s.x, y: s.y - 24 },
+      fill: s.color, duration:0.7, ease:'power2.inOut',
+      onComplete: () => {
+        shardCounts[sIdx]++;
+        totalQ++;
+        document.getElementById(`shard-count-${sIdx}`).textContent = `${shardCounts[sIdx]} queries`;
+        gsap.fromTo(`#shard-rect-${sIdx}`, { attr:{ stroke:'#fff' } },
+          { attr:{ stroke: s.color }, duration:0.5 });
+        gsap.to([pkt, lbl], { opacity:0, duration:0.3, delay:0.3,
+          onComplete: () => { animating = false; updateShardBars(); }});
+        document.getElementById('info-box').innerHTML =
+          `Query <strong>#${totalQ}</strong>: uid=<strong>${uid}</strong> → <strong style="color:${s.color}">${s.label}</strong>
+          (${strategy === 'range' ? `range ${s.range}` : strategy === 'hash' ? `hash(${uid}) % 3 = ${uid%3}` : `directory lookup`})`;
+      }
+    });
+  }
+
+  function updateShardBars() {
+    const cont = document.getElementById('shard-bars');
+    cont.innerHTML = '';
+    const max = Math.max(...shardCounts, 1);
+    SHARDS.forEach((s, i) => {
+      const wrap = document.createElement('div'); wrap.className = 'shard-bar';
+      const lbl = document.createElement('div'); lbl.className = 'shard-bar-label'; lbl.textContent = s.label;
+      const track = document.createElement('div'); track.className = 'shard-bar-track';
+      const fill = document.createElement('div'); fill.className = 'shard-bar-fill';
+      fill.style.background = s.color;
+      fill.style.height = `${(shardCounts[i]/max)*100}%`;
+      fill.style.opacity = '0.7';
+      track.appendChild(fill);
+      const cnt = document.createElement('div'); cnt.className = 'shard-bar-count';
+      cnt.textContent = shardCounts[i];
+      wrap.appendChild(lbl); wrap.appendChild(track); wrap.appendChild(cnt);
+      cont.appendChild(wrap);
+    });
+  }
+
+  document.querySelectorAll('.algo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      strategy = btn.dataset.strategy;
+      reset();
+      document.getElementById('info-box').innerHTML = strategyInfo[strategy];
+    });
+  });
+
+  document.getElementById('btn-send').addEventListener('click', sendQuery);
+
+  document.getElementById('btn-auto').addEventListener('click', () => {
+    autoOn = !autoOn;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = autoOn ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', autoOn);
+    if (autoOn) { autoTimer = setInterval(sendQuery, 1200); }
+    else { clearInterval(autoTimer); }
+  });
+
+  function reset() {
+    clearInterval(autoTimer); autoOn = false; animating = false;
+    document.getElementById('btn-auto').textContent = '↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    shardCounts = [0,0,0]; totalQ = 0;
+    drawBase(); updateShardBars();
+    document.getElementById('info-box').innerHTML = 'Press <strong>Send Query</strong> to route a user lookup to the correct shard.';
+  }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+
+  drawBase();
+  updateShardBars();
+</script>
+</body>
+</html>

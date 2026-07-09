@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Linked List — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #ll-svg { width:100%; overflow:visible; }
+    .node-input { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; width:80px; text-align:center; }
+    .op-row { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.5rem; align-items:center; }
+    .op-row label { font-size:0.85rem; color:var(--text-muted); }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Singly Linked List</h1>
+  <p class="subtitle">Insert at head/tail · Delete by value · Traverse</p>
+
+  <div class="stage" style="min-height:160px; overflow:visible;">
+    <svg id="ll-svg" viewBox="0 0 800 120" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="op-row">
+    <label>Value:</label>
+    <input class="node-input" type="number" id="val-input" value="42" min="1" max="99" />
+    <button class="btn primary" id="btn-head">Insert Head</button>
+    <button class="btn primary" id="btn-tail">Insert Tail</button>
+    <button class="btn" id="btn-del">Delete</button>
+    <button class="btn" id="btn-traverse">Traverse</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Use the buttons above to manipulate the linked list.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const svg = document.getElementById('ll-svg');
+  const NS  = 'http://www.w3.org/2000/svg';
+  const NODE_W = 72, NODE_H = 48, GAP = 24, START_X = 20, Y = 36;
+  let list = [10, 20, 30]; // initial values
+  let busy = false;
+  let looping = false;
+  let loopTimer = null;
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
+    return e;
+  }
+
+  function renderList(highlight = -1, highlightColor = '#ffd700') {
+    svg.innerHTML = '';
+    const n = list.length;
+    const totalW = n * (NODE_W + GAP) + GAP + 80;
+    svg.setAttribute('viewBox', `0 0 ${Math.max(totalW, 300)} 120`);
+
+    list.forEach((val, i) => {
+      const x = START_X + i * (NODE_W + GAP);
+      const color = (i === highlight) ? highlightColor : '#6c63ff';
+      const strokeW = (i === highlight) ? 2.5 : 1.5;
+
+      // node rect
+      const g = el('g', { id:`node-${i}`, opacity:'0' });
+      g.appendChild(el('rect', { x, y:Y, width:NODE_W, height:NODE_H, rx:'10', ry:'10',
+        fill:'#1a1d27', stroke:color, 'stroke-width':strokeW }));
+
+      // value text
+      const txt = el('text', { x: x + NODE_W * 0.42, y: Y + NODE_H / 2 + 1,
+        'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill: color, 'font-size':'14', 'font-weight':'700',
+        'font-family':"'Segoe UI',system-ui,sans-serif" });
+      txt.textContent = val;
+      g.appendChild(txt);
+
+      // pointer field
+      g.appendChild(el('rect', { x: x + NODE_W * 0.68, y: Y + 8, width: NODE_W * 0.28, height: NODE_H - 16,
+        rx:'4', ry:'4', fill: i < n-1 ? 'rgba(108,99,255,0.15)' : 'rgba(255,101,132,0.15)',
+        stroke: i < n-1 ? '#6c63ff' : '#ff6584', 'stroke-width':'1' }));
+
+      // NULL label for last
+      if (i === n - 1) {
+        const nt = el('text', { x: x + NODE_W * 0.82, y: Y + NODE_H / 2 + 1,
+          'text-anchor':'middle', 'dominant-baseline':'middle',
+          fill:'#ff6584', 'font-size':'7', 'font-weight':'700',
+          'font-family':"'Segoe UI',system-ui,sans-serif" });
+        nt.textContent = 'NULL';
+        g.appendChild(nt);
+      }
+
+      // arrow to next
+      if (i < n - 1) {
+        const ax = x + NODE_W - 3, ay = Y + NODE_H / 2;
+        const ax2 = x + NODE_W + GAP;
+        g.appendChild(el('line', { x1:ax, y1:ay, x2:ax2, y2:ay,
+          stroke:'#6c63ff', 'stroke-width':'1.5',
+          'marker-end':'url(#arr)' }));
+      }
+
+      // index label below
+      const idxT = el('text', { x: x + NODE_W * 0.42, y: Y + NODE_H + 14,
+        'text-anchor':'middle', fill:'#8b8fa8', 'font-size':'10',
+        'font-family':"'Segoe UI',system-ui,sans-serif" });
+      idxT.textContent = `[${i}]`;
+      g.appendChild(idxT);
+
+      svg.appendChild(g);
+      gsap.to(g, { opacity:1, duration:0.3, delay: i * 0.06 });
+    });
+
+    // HEAD label
+    if (n > 0) {
+      const hl = el('text', { x: START_X + NODE_W * 0.42, y: Y - 10,
+        'text-anchor':'middle', fill:'#8b8fa8', 'font-size':'10',
+        'font-family':"'Segoe UI',system-ui,sans-serif" });
+      hl.textContent = 'HEAD';
+      svg.appendChild(hl);
+    }
+
+    // defs arrow
+    const defs = el('defs', {});
+    const mk = el('marker', { id:'arr', markerWidth:'7', markerHeight:'7', refX:'6', refY:'3', orient:'auto' });
+    mk.appendChild(el('path', { d:'M0,0 L0,6 L7,3 z', fill:'#6c63ff' }));
+    defs.appendChild(mk);
+    svg.insertBefore(defs, svg.firstChild);
+
+    // empty state
+    if (n === 0) {
+      const et = el('text', { x:'50%', y:'60', 'text-anchor':'middle', fill:'#8b8fa8',
+        'font-size':'14', 'font-family':"'Segoe UI',system-ui,sans-serif" });
+      et.textContent = 'List is empty';
+      svg.appendChild(et);
+    }
+  }
+
+  function getVal() {
+    const v = parseInt(document.getElementById('val-input').value);
+    return isNaN(v) ? 42 : Math.abs(v) % 100;
+  }
+
+  document.getElementById('btn-head').addEventListener('click', () => {
+    if (list.length >= 9) { document.getElementById('info-box').innerHTML = 'Max 9 nodes for display.'; return; }
+    const v = getVal();
+    list.unshift(v);
+    renderList(0, '#ffd700');
+    document.getElementById('info-box').innerHTML = `Inserted <strong>${v}</strong> at <strong>HEAD</strong>. New list length: ${list.length}.`;
+  });
+
+  document.getElementById('btn-tail').addEventListener('click', () => {
+    if (list.length >= 9) { document.getElementById('info-box').innerHTML = 'Max 9 nodes for display.'; return; }
+    const v = getVal();
+    list.push(v);
+    renderList(list.length - 1, '#43e97b');
+    document.getElementById('info-box').innerHTML = `Inserted <strong>${v}</strong> at <strong>TAIL</strong>. New list length: ${list.length}.`;
+  });
+
+  document.getElementById('btn-del').addEventListener('click', () => {
+    const v = getVal();
+    const idx = list.indexOf(v);
+    if (idx === -1) {
+      document.getElementById('info-box').innerHTML = `Value <strong>${v}</strong> not found in the list.`;
+      // flash highlight search
+      renderList(-1);
+      return;
+    }
+    renderList(idx, '#ff6584');
+    setTimeout(() => {
+      list.splice(idx, 1);
+      renderList(-1);
+      document.getElementById('info-box').innerHTML = `Deleted node with value <strong>${v}</strong> at index ${idx}. List length: ${list.length}.`;
+    }, 600);
+  });
+
+  function doTraverse() {
+    if (busy) return;
+    busy = true;
+    document.getElementById('info-box').innerHTML = 'Traversing from HEAD…';
+    let i = 0;
+    function step() {
+      if (i >= list.length) {
+        busy = false;
+        renderList(-1);
+        document.getElementById('info-box').innerHTML = `Traversal complete. Visited ${list.length} nodes: <strong>[${list.join(' → ')}] → NULL</strong>`;
+        if (looping) { loopTimer = setTimeout(doTraverse, 1200); }
+        return;
+      }
+      renderList(i, '#ffd700');
+      document.getElementById('info-box').innerHTML = `Visiting index <strong>${i}</strong> → value <strong>${list[i]}</strong>`;
+      i++;
+      setTimeout(step, 500);
+    }
+    step();
+  }
+
+  document.getElementById('btn-traverse').addEventListener('click', doTraverse);
+
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+    if (!looping) clearTimeout(loopTimer);
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    busy = false;
+    clearTimeout(loopTimer);
+    list = [10, 20, 30];
+    renderList(-1);
+    document.getElementById('info-box').innerHTML = 'Use the buttons above to manipulate the linked list.';
+  });
+
+  renderList(-1);
+</script>
+</body>
+</html>

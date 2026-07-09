@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    @import url('../css/style.css');
+  </style>
+  <link rel="stylesheet" href="../css/style.css" />
+  <title>Dynamic Programming — DSA Animation</title>
+  <style>
+    .dp-tabs { display:flex; gap:0.5rem; justify-content:center; margin-bottom:1rem; flex-wrap:wrap; }
+    .dp-tab  { padding:0.4rem 1.1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.85rem; cursor:pointer; transition:all 0.2s; }
+    .dp-tab.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+
+    /* Fibonacci */
+    #fib-svg { width:100%; overflow:visible; }
+
+    /* Coin Change */
+    .dp-table { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+    .dp-cell  { width:48px; height:48px; border-radius:8px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; border:2px solid var(--border);
+      background:var(--surface2); font-size:0.85rem; font-weight:700; position:relative; }
+    .dp-cell .dp-idx { position:absolute; bottom:-18px; font-size:0.6rem; color:var(--text-muted); }
+    .dp-cell.current { border-color:#ffd700; background:rgba(255,215,0,0.12); color:#ffd700; }
+    .dp-cell.done    { border-color:#43e97b; background:rgba(67,233,123,0.12); color:#43e97b; }
+    .dp-cell.ref     { border-color:#6c63ff; background:rgba(108,99,255,0.12); color:#a09cf7; }
+    .coin-row { display:flex; gap:0.5rem; align-items:center; justify-content:center; margin-top:0.75rem; flex-wrap:wrap; }
+    .coin-badge { width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:0.75rem;font-weight:700;border:2px solid var(--accent);color:var(--accent);background:rgba(108,99,255,0.1); }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #fib-svg { min-width:380px; }
+      .dp-cell { width:36px; height:36px; font-size:0.72rem; }
+      .dp-tabs { flex-wrap:wrap; }
+      .dp-tab { font-size:0.75rem; padding:0.3rem 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Dynamic Programming</h1>
+  <p class="subtitle">Overlapping subproblems · Optimal substructure · Memoization & Tabulation</p>
+
+  <div class="dp-tabs">
+    <button class="dp-tab active" data-tab="fib">Fibonacci (Memoization)</button>
+    <button class="dp-tab" data-tab="coin">Coin Change (Tabulation)</button>
+    <button class="dp-tab" data-tab="lcs">Longest Common Subsequence</button>
+  </div>
+
+  <div class="stage" style="flex-direction:column;gap:0.5rem;min-height:280px;" id="dp-stage">
+    <svg id="fib-svg" viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-play">▶ Play</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Play</strong> to visualize Dynamic Programming.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  let activeTab='fib', steps=[], stepIdx=0, playing=false, playTimer=null, looping=false;
+
+  // ── Fibonacci tree nodes ──
+  const FIB_N = 6;
+  const fibNodes = [];
+  const fibEdges = [];
+  function buildFibTree(n, depth, x, spread) {
+    const id=`fib-${n}-${Math.random().toString(36).slice(2,6)}`;
+    const node={ id, n, depth, x, y:30+depth*62 };
+    fibNodes.push(node);
+    if (n>1) {
+      const left =buildFibTree(n-1, depth+1, x-spread, spread/2);
+      const right=buildFibTree(n-2, depth+1, x+spread, spread/2);
+      fibEdges.push([id, left.id]); fibEdges.push([id, right.id]);
+    }
+    return node;
+  }
+
+  // ── Build steps for each tab ──
+  function buildFibSteps() {
+    fibNodes.length=0; fibEdges.length=0;
+    buildFibTree(FIB_N,0,350,170);
+    const memo={}, s=[];
+    function fib(n) {
+      const node=fibNodes.find(nd=>nd.n===n&&nd.depth===0)||fibNodes.find(nd=>nd.n===n);
+      if (n in memo) {
+        s.push({type:'hit', n, val:memo[n], memo:{...memo}, label:`fib(${n}) = <strong>${memo[n]}</strong> (cached 🟢)`}); return memo[n];
+      }
+      s.push({type:'call', n, memo:{...memo}, label:`Calling fib(${n})…`});
+      if (n<=1) { memo[n]=n; s.push({type:'base',n,val:n,memo:{...memo},label:`Base case: fib(${n}) = <strong>${n}</strong>`}); return n; }
+      const l=fib(n-1), r=fib(n-2);
+      memo[n]=l+r;
+      s.push({type:'compute',n,val:memo[n],memo:{...memo},label:`fib(${n}) = fib(${n-1})+fib(${n-2}) = ${l}+${r} = <strong>${memo[n]}</strong>`});
+      return memo[n];
+    }
+    fib(FIB_N);
+    s.push({type:'done',memo:{...memo},label:`All computed! fib(${FIB_N}) = <strong>${memo[FIB_N]}</strong>`});
+    return s;
+  }
+
+  const COINS=[1,5,10,25], AMOUNT=36;
+  function buildCoinSteps() {
+    const dp=Array(AMOUNT+1).fill(Infinity);
+    const from=Array(AMOUNT+1).fill(-1);
+    dp[0]=0;
+    const s=[{type:'init',dp:[...dp],label:`Initialize dp[0..${AMOUNT}] = ∞, dp[0] = 0. Coins: [${COINS.join(', ')}]`}];
+    for (let i=1;i<=AMOUNT;i++) {
+      for (const c of COINS) {
+        if (c<=i) {
+          s.push({type:'try',i,coin:c,dp:[...dp],label:`dp[${i}]: try coin ${c}, dp[${i-c}]+1=${dp[i-c]+1} vs current ${dp[i]===Infinity?'∞':dp[i]}`});
+          if (dp[i-c]+1<dp[i]) { dp[i]=dp[i-c]+1; from[i]=c; s.push({type:'update',i,val:dp[i],dp:[...dp],label:`Update dp[${i}] = <strong>${dp[i]}</strong> (use coin ${c})`}); }
+        }
+      }
+    }
+    s.push({type:'done',dp:[...dp],amount:AMOUNT,val:dp[AMOUNT],label:`Min coins for ${AMOUNT} = <strong>${dp[AMOUNT]}</strong>`});
+    return s;
+  }
+
+  const STR_A='ABCBDAB', STR_B='BDCAB';
+  function buildLCSSteps() {
+    const m=STR_A.length, n=STR_B.length;
+    const dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+    const s=[{type:'init',dp:dp.map(r=>[...r]),label:`LCS of "${STR_A}" and "${STR_B}". Fill dp table.`}];
+    for (let i=1;i<=m;i++) for (let j=1;j<=n;j++) {
+      if (STR_A[i-1]===STR_B[j-1]) {
+        dp[i][j]=dp[i-1][j-1]+1;
+        s.push({type:'match',i,j,val:dp[i][j],dp:dp.map(r=>[...r]),label:`Match '${STR_A[i-1]}': dp[${i}][${j}]=dp[${i-1}][${j-1}]+1=<strong>${dp[i][j]}</strong>`});
+      } else {
+        dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1]);
+        s.push({type:'max',i,j,val:dp[i][j],dp:dp.map(r=>[...r]),label:`No match: dp[${i}][${j}]=max(dp[${i-1}][${j}],dp[${i}][${j-1}])=<strong>${dp[i][j]}</strong>`});
+      }
+    }
+    s.push({type:'done',dp:dp.map(r=>[...r]),val:dp[m][n],label:`LCS length = <strong>${dp[m][n]}</strong> for "${STR_A}" and "${STR_B}"`});
+    return s;
+  }
+
+  // ── Renderers ──
+  function renderFib(s) {
+    const svg=document.getElementById('fib-svg');
+    svg.innerHTML='';
+    fibEdges.forEach(([a,b])=>{
+      const na=fibNodes.find(n=>n.id===a), nb=fibNodes.find(n=>n.id===b);
+      if(!na||!nb)return;
+      const line=document.createElementNS(NS,'line');
+      line.setAttribute('x1',na.x);line.setAttribute('y1',na.y);line.setAttribute('x2',nb.x);line.setAttribute('y2',nb.y);
+      line.setAttribute('stroke','#2e3148');line.setAttribute('stroke-width','1.5');svg.appendChild(line);
+    });
+    fibNodes.forEach(node=>{
+      const cached=s.memo&&s.memo[node.n]!==undefined;
+      const isCurrent=s.n===node.n;
+      const color=isCurrent?'#ffd700':cached?'#43e97b':'#2e3148';
+      const stroke=isCurrent?'#ffd700':cached?'#43e97b':'#6c63ff';
+      const circ=document.createElementNS(NS,'circle');
+      circ.setAttribute('cx',node.x);circ.setAttribute('cy',node.y);circ.setAttribute('r','20');
+      circ.setAttribute('fill',color);circ.setAttribute('stroke',stroke);circ.setAttribute('stroke-width','2');
+      const lbl=document.createElementNS(NS,'text');
+      lbl.setAttribute('x',node.x);lbl.setAttribute('y',node.y-4);
+      lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','middle');
+      lbl.setAttribute('fill',isCurrent?'#1a1d27':cached?'#1a1d27':'#e8eaf6');
+      lbl.setAttribute('font-size','10');lbl.setAttribute('font-weight','700');
+      lbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
+      lbl.textContent=`f(${node.n})`;
+      const val=s.memo&&s.memo[node.n]!==undefined?document.createElementNS(NS,'text'):null;
+      if(val){
+        val.setAttribute('x',node.x);val.setAttribute('y',node.y+8);
+        val.setAttribute('text-anchor','middle');val.setAttribute('fill',isCurrent?'#1a1d27':'#1a1d27');
+        val.setAttribute('font-size','9');val.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
+        val.textContent='='+s.memo[node.n];svg.appendChild(val);
+      }
+      svg.appendChild(circ);svg.appendChild(lbl);
+    });
+  }
+
+  function renderCoin(s) {
+    const stage=document.getElementById('dp-stage');
+    stage.innerHTML='';
+    // coins row
+    const cr=document.createElement('div');cr.className='coin-row';
+    COINS.forEach(c=>{const b=document.createElement('div');b.className='coin-badge';b.textContent=c;cr.appendChild(b);});
+    const coinLbl=document.createElement('div');coinLbl.style.cssText='font-size:0.8rem;color:var(--text-muted);margin-right:0.5rem;';
+    coinLbl.textContent='Coins:';cr.insertBefore(coinLbl,cr.firstChild);stage.appendChild(cr);
+    // dp table
+    const tbl=document.createElement('div');tbl.className='dp-table';tbl.style.marginTop='1.5rem';
+    s.dp.slice(0,AMOUNT+1).forEach((v,i)=>{
+      const cell=document.createElement('div');
+      cell.className='dp-cell'+(i===s.i?' current':v!==Infinity&&i>0?' done':'');
+      cell.innerHTML=`${v===Infinity?'∞':v}<span class="dp-idx">${i}</span>`;
+      tbl.appendChild(cell);
+    });
+    stage.appendChild(tbl);
+  }
+
+  function renderLCS(s) {
+    const stage=document.getElementById('dp-stage');
+    stage.innerHTML='';
+    const tbl=document.createElement('table');
+    tbl.style.cssText='border-collapse:collapse;margin:auto;font-size:0.8rem;';
+    // header row
+    const hdr=document.createElement('tr');
+    ['','','...STR_B...'].forEach((h,i)=>{
+      const th=document.createElement('th');th.style.cssText='padding:4px 8px;color:var(--text-muted);font-weight:400;';
+      th.textContent=i===2?'':h;hdr.appendChild(th);
+    });
+    // col headers
+    const ch=document.createElement('tr');
+    ['',' '].concat(STR_B.split('')).forEach(c=>{
+      const th=document.createElement('th');th.style.cssText='padding:4px 8px;color:var(--accent);font-size:0.75rem;min-width:28px;text-align:center;';
+      th.textContent=c;ch.appendChild(th);
+    });
+    tbl.appendChild(ch);
+    s.dp.forEach((row,i)=>{
+      const tr=document.createElement('tr');
+      const rh=document.createElement('th');rh.style.cssText='padding:4px 8px;color:var(--accent2);font-size:0.75rem;';
+      rh.textContent=i===0?' ':STR_A[i-1];tr.appendChild(rh);
+      row.forEach((v,j)=>{
+        const td=document.createElement('td');
+        const isCell=s.i===i&&s.j===j;
+        td.style.cssText=`padding:4px 8px;text-align:center;border:1px solid var(--border);min-width:28px;font-weight:700;
+          background:${isCell?'rgba(255,215,0,0.12)':v>0?'rgba(67,233,123,0.08)':'var(--surface2)'};
+          color:${isCell?'#ffd700':v>0?'#43e97b':'var(--text-muted)'};`;
+        td.textContent=v;tr.appendChild(td);
+      });
+      tbl.appendChild(tr);
+    });
+    stage.appendChild(tbl);
+  }
+
+  function renderStep(s) {
+    document.getElementById('info-box').innerHTML=s.label;
+    if (activeTab==='fib') renderFib(s);
+    else if (activeTab==='coin') renderCoin(s);
+    else renderLCS(s);
+  }
+
+  function initStage() {
+    const stage=document.getElementById('dp-stage');
+    if (activeTab==='fib') {
+      stage.innerHTML='<svg id="fib-svg" viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg"></svg>';
+      renderFib({memo:{}});
+    } else if (activeTab==='coin') {
+      renderCoin({dp:Array(AMOUNT+1).fill(Infinity), i:-1});
+    } else {
+      const m=STR_A.length,n=STR_B.length;
+      renderLCS({dp:Array.from({length:m+1},()=>Array(n+1).fill(0)),i:-1,j:-1});
+    }
+  }
+
+  function reset() {
+    clearTimeout(playTimer); playing=false; looping=false; steps=[]; stepIdx=0;
+    document.getElementById('btn-play').textContent='▶ Play';
+    document.getElementById('btn-loop').textContent='↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    initStage();
+    document.getElementById('info-box').innerHTML='Press <strong>Play</strong> to visualize Dynamic Programming.';
+  }
+
+  function init() {
+    if(!steps.length){
+      if(activeTab==='fib') steps=buildFibSteps();
+      else if(activeTab==='coin') steps=buildCoinSteps();
+      else steps=buildLCSSteps();
+      stepIdx=0;
+    }
+  }
+
+  document.querySelectorAll('.dp-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      document.querySelectorAll('.dp-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active'); activeTab=tab.dataset.tab; reset();
+    });
+  });
+
+  document.getElementById('btn-reset').addEventListener('click',reset);
+  document.getElementById('btn-step').addEventListener('click',()=>{
+    clearTimeout(playTimer);playing=false;document.getElementById('btn-play').textContent='▶ Play';
+    init();if(stepIdx<steps.length)renderStep(steps[stepIdx++]);
+  });
+  document.getElementById('btn-play').addEventListener('click',()=>{
+    if(playing){clearTimeout(playTimer);playing=false;document.getElementById('btn-play').textContent='▶ Play';return;}
+    if(!steps.length||stepIdx>=steps.length){reset();init();}
+    playing=true;document.getElementById('btn-play').textContent='⏸ Pause';
+    function next(){
+      if(!playing){document.getElementById('btn-play').textContent='▶ Play';return;}
+      if(stepIdx>=steps.length){
+        if(looping){playTimer=setTimeout(()=>{reset();init();playing=true;document.getElementById('btn-play').textContent='⏸ Pause';next();},1500);}
+        else{playing=false;document.getElementById('btn-play').textContent='▶ Play';}
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer=setTimeout(next,activeTab==='coin'?400:700);
+    }
+    next();
+  });
+  document.getElementById('btn-loop').addEventListener('click',()=>{
+    looping=!looping;
+    document.getElementById('btn-loop').textContent=looping?'↻ Loop: On':'↻ Loop: Off';
+    document.getElementById('btn-loop').classList.toggle('primary',looping);
+  });
+
+  reset();
+</script>
+</body>
+</html>

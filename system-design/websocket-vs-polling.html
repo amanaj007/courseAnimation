@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebSocket vs HTTP Polling — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #ws-svg { width:100%; overflow:visible; }
+    .compare-cards { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-top:0.75rem; }
+    .compare-card { background:var(--surface); border:2px solid var(--border); border-radius:12px;
+      padding:0.75rem 1.25rem; min-width:200px; flex:1; max-width:280px; }
+    .compare-card h3 { font-size:0.95rem; margin-bottom:0.5rem; }
+    .compare-card ul { padding-left:1rem; font-size:0.78rem; color:var(--text-muted); line-height:1.7; }
+    .stats-row { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    .mode-row { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin-bottom:0.75rem; }
+    .mode-btn { padding:0.4rem 1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+    .mode-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #ws-svg { min-width:420px; }
+      .compare-cards { flex-direction:column; gap:0.75rem; }
+      .compare-card { min-width:0; max-width:100%; }
+      .mode-row { flex-wrap:wrap; gap:0.4rem; }
+      .mode-btn { font-size:0.75rem; padding:0.3rem 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>WebSocket vs HTTP Polling</h1>
+  <p class="subtitle">Real-time communication · Short polling vs Long polling vs WebSocket vs SSE</p>
+
+  <div class="mode-row">
+    <button class="mode-btn active" data-mode="polling">Short Polling</button>
+    <button class="mode-btn" data-mode="longpoll">Long Polling</button>
+    <button class="mode-btn" data-mode="websocket">WebSocket</button>
+    <button class="mode-btn" data-mode="sse">Server-Sent Events</button>
+  </div>
+
+  <div class="stage" style="min-height:240px; overflow:visible; flex-direction:column;">
+    <svg id="ws-svg" viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">Requests sent: <strong id="stat-reqs">0</strong></div>
+    <div class="stat-chip">Messages received: <strong id="stat-msgs">0</strong></div>
+    <div class="stat-chip">Overhead: <strong id="stat-overhead">High</strong></div>
+    <div class="stat-chip">Latency: <strong id="stat-latency">~500ms</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-start">▶ Start</button>
+    <button class="btn" id="btn-send">Send Message</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Select a communication mode and click Start to see how messages are exchanged.</div>
+
+  <div class="compare-cards">
+    <div class="compare-card">
+      <h3 style="color:#ff6584;">Short Polling</h3>
+      <ul>
+        <li>Client polls every N seconds</li>
+        <li>High overhead (many requests)</li>
+        <li>High latency</li>
+        <li>Simple to implement</li>
+      </ul>
+    </div>
+    <div class="compare-card">
+      <h3 style="color:#ffd700;">Long Polling</h3>
+      <ul>
+        <li>Client holds connection open</li>
+        <li>Server responds when data ready</li>
+        <li>Lower latency than short poll</li>
+        <li>Better but still high overhead</li>
+      </ul>
+    </div>
+    <div class="compare-card">
+      <h3 style="color:#43e97b;">WebSocket</h3>
+      <ul>
+        <li>Persistent bidirectional connection</li>
+        <li>Low latency, low overhead</li>
+        <li>Full duplex communication</li>
+        <li>Best for real-time apps</li>
+      </ul>
+    </div>
+    <div class="compare-card">
+      <h3 style="color:#6c63ff;">Server-Sent Events</h3>
+      <ul>
+        <li>Server → Client only (unidirectional)</li>
+        <li>Single HTTP connection</li>
+        <li>Auto-reconnect built-in</li>
+        <li>Good for live feeds/dashboards</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('ws-svg');
+  let mode='polling', running=false, runTimer=null, reqs=0, msgs=0, animating=false;
+
+  const MODE_META={
+    polling:   {color:'#ff6584',overhead:'Very High',latency:'~1-5s', label:'Short Polling'},
+    longpoll:  {color:'#ffd700',overhead:'Medium',   latency:'~100ms', label:'Long Polling'},
+    websocket: {color:'#43e97b',overhead:'Very Low',  latency:'<50ms',  label:'WebSocket'},
+    sse:       {color:'#6c63ff',overhead:'Low',       latency:'<100ms', label:'Server-Sent Events'},
+  };
+
+  const CLIENT={x:90,y:100};
+  const SERVER={x:620,y:100};
+
+  function el(tag,attrs,text){
+    const e=document.createElementNS(NS,tag);
+    for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
+    if(text!==undefined)e.textContent=text;return e;
+  }
+
+  function drawBase(wsActive=false, msgCount=0){
+    svg.innerHTML='';
+    const meta=MODE_META[mode];
+
+    // Client
+    svg.appendChild(el('rect',{x:CLIENT.x-40,y:CLIENT.y-30,width:90,height:60,rx:'10',fill:'#1a1d27',stroke:'#6c63ff','stroke-width':'2'}));
+    svg.appendChild(el('text',{x:CLIENT.x+5,y:CLIENT.y-8,'text-anchor':'middle','dominant-baseline':'middle',fill:'#6c63ff','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+    svg.appendChild(el('text',{x:CLIENT.x+5,y:CLIENT.y+10,'text-anchor':'middle','dominant-baseline':'middle',fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},'Browser'));
+
+    // Server
+    svg.appendChild(el('rect',{x:SERVER.x-40,y:SERVER.y-30,width:100,height:60,rx:'10',fill:'#1a1d27',stroke:meta.color,'stroke-width':'2'}));
+    svg.appendChild(el('text',{x:SERVER.x+10,y:SERVER.y-8,'text-anchor':'middle','dominant-baseline':'middle',fill:meta.color,'font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Server'));
+    svg.appendChild(el('text',{x:SERVER.x+10,y:SERVER.y+10,'text-anchor':'middle','dominant-baseline':'middle',fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},meta.label));
+
+    // Connection line
+    const lineColor=wsActive?meta.color:'#2e3148';
+    const lineDash=mode==='polling'||mode==='longpoll'?'6 4':'none';
+    const lineW=wsActive?2.5:1.5;
+    svg.appendChild(el('line',{x1:CLIENT.x+50,y1:CLIENT.y,x2:SERVER.x-40,y2:SERVER.y,
+      stroke:lineColor,'stroke-width':lineW,'stroke-dasharray':lineDash}));
+
+    if(mode==='websocket'&&wsActive){
+      // Bidirectional arrows
+      svg.appendChild(el('text',{x:(CLIENT.x+SERVER.x)/2,y:CLIENT.y-18,'text-anchor':'middle',fill:meta.color,'font-size':'14'},'↔'));
+      svg.appendChild(el('text',{x:(CLIENT.x+SERVER.x)/2,y:CLIENT.y-6,'text-anchor':'middle',fill:meta.color,'font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},'persistent connection'));
+    } else if(mode==='sse'&&wsActive){
+      svg.appendChild(el('text',{x:(CLIENT.x+SERVER.x)/2,y:CLIENT.y-18,'text-anchor':'middle',fill:meta.color,'font-size':'14'},'→'));
+      svg.appendChild(el('text',{x:(CLIENT.x+SERVER.x)/2,y:CLIENT.y-6,'text-anchor':'middle',fill:meta.color,'font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},'event stream'));
+    }
+
+    // Message count badge
+    if(msgCount>0){
+      svg.appendChild(el('circle',{cx:SERVER.x+10,cy:SERVER.y-38,r:'12',fill:meta.color}));
+      svg.appendChild(el('text',{x:SERVER.x+10,y:SERVER.y-38,'text-anchor':'middle','dominant-baseline':'middle',fill:'#1a1d27','font-size':'10','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},msgCount));
+    }
+
+    // Protocol info
+    const info={polling:'Every ~2s: client opens new HTTP connection, asks for update',
+      longpoll:'Client opens connection, server holds until data ready, then responds',
+      websocket:'ws:// persistent connection — both sides push freely at any time',
+      sse:'text/event-stream — server pushes events; client reconnects automatically'};
+    svg.appendChild(el('text',{x:360,y:185,'text-anchor':'middle',fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},info[mode]));
+
+    // Packets placeholder
+    svg.appendChild(el('circle',{id:'ws-pkt',cx:'-50',cy:'-50',r:'7',fill:meta.color,opacity:'0'}));
+    svg.appendChild(el('circle',{id:'ws-pkt2',cx:'-50',cy:'-50',r:'7',fill:'#6c63ff',opacity:'0'}));
+  }
+
+  function animatePacket(fromClient, label, color, onDone){
+    if(animating){onDone&&onDone();return;}
+    animating=true;
+    const pkt=document.getElementById('ws-pkt');
+    if(!pkt){animating=false;onDone&&onDone();return;}
+    const from=fromClient?{x:CLIENT.x+50,y:CLIENT.y}:{x:SERVER.x-40,y:SERVER.y};
+    const to  =fromClient?{x:SERVER.x-40,y:SERVER.y}:{x:CLIENT.x+50,y:CLIENT.y};
+    gsap.set(pkt,{attr:{cx:from.x,cy:from.y},opacity:1,fill:color||MODE_META[mode].color});
+    if(label){
+      const existing=svg.querySelector('.pkt-lbl');if(existing)existing.remove();
+      const lbl=el('text',{class:'pkt-lbl',x:(from.x+to.x)/2,y:from.y-16,'text-anchor':'middle',fill:color||MODE_META[mode].color,'font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},label);
+      svg.appendChild(lbl);
+      gsap.from(lbl,{opacity:0,duration:0.2});
+      setTimeout(()=>lbl.remove(),600);
+    }
+    gsap.to(pkt,{attr:{cx:to.x,cy:to.y},duration:0.45,ease:'power2.inOut',onComplete:()=>{
+      gsap.to(pkt,{opacity:0,duration:0.25,onComplete:()=>{animating=false;onDone&&onDone();}});
+    }});
+  }
+
+  function doPollingCycle(){
+    if(!running)return; reqs++;
+    document.getElementById('stat-reqs').textContent=reqs;
+    document.getElementById('info-box').innerHTML=`📡 Polling request #${reqs}: Client asks "Any new data?"`;
+    drawBase(false, msgs);
+    animatePacket(true,'GET?','#6c63ff',()=>{
+      setTimeout(()=>{
+        if(!running)return;
+        const hasData=Math.random()<0.3;
+        if(hasData){msgs++;document.getElementById('stat-msgs').textContent=msgs;drawBase(false,msgs);}
+        document.getElementById('info-box').innerHTML=hasData?`✅ Response: New data received! (${msgs} total)`:`😶 Response: No new data. Waiting ${2}s for next poll…`;
+        if(hasData) animatePacket(false,'DATA',MODE_META[mode].color);
+        else setTimeout(()=>{if(running)doPollingCycle();},2000);
+        if(hasData) setTimeout(()=>{if(running)doPollingCycle();},2200);
+      },400);
+    });
+  }
+
+  function doLongPollCycle(){
+    if(!running)return; reqs++;
+    drawBase(true,msgs); document.getElementById('stat-reqs').textContent=reqs;
+    document.getElementById('info-box').innerHTML=`🔌 Long poll #${reqs}: Client holds connection open, waiting for server…`;
+    animatePacket(true,'HOLD','#ffd700',()=>{
+      const waitMs=1000+Math.random()*1500;
+      setTimeout(()=>{
+        if(!running)return;
+        msgs++; drawBase(false,msgs);
+        document.getElementById('stat-msgs').textContent=msgs;
+        document.getElementById('info-box').innerHTML=`⚡ Server responded with data after ${Math.round(waitMs)}ms. Connection closed, reopening…`;
+        animatePacket(false,'DATA',MODE_META[mode].color,()=>{if(running)setTimeout(doLongPollCycle,600);});
+      },waitMs);
+    });
+  }
+
+  function doWebSocketCycle(){
+    if(!running)return;
+    drawBase(true,msgs);
+    const fromClient=Math.random()<0.5;
+    msgs++;
+    document.getElementById('stat-reqs').textContent=reqs;
+    document.getElementById('stat-msgs').textContent=msgs;
+    document.getElementById('info-box').innerHTML=`⚡ WebSocket frame #${msgs}: ${fromClient?'Client → Server':'Server → Client'} push (no overhead!)`;
+    animatePacket(fromClient,'MSG',MODE_META[mode].color,()=>{if(running)setTimeout(doWebSocketCycle,700);});
+  }
+
+  function doSSECycle(){
+    if(!running)return;
+    drawBase(true,msgs); reqs=1;
+    msgs++;
+    document.getElementById('stat-reqs').textContent='1 (persistent)';
+    document.getElementById('stat-msgs').textContent=msgs;
+    document.getElementById('info-box').innerHTML=`📺 SSE event #${msgs}: Server pushes to client (client can't push back via SSE)`;
+    animatePacket(false,`event:${msgs}`,MODE_META[mode].color,()=>{if(running)setTimeout(doSSECycle,900);});
+  }
+
+  function start(){
+    if(running)return;
+    running=true;
+    const meta=MODE_META[mode];
+    document.getElementById('stat-overhead').textContent=meta.overhead;
+    document.getElementById('stat-latency').textContent=meta.latency;
+    if(mode==='polling') doPollingCycle();
+    else if(mode==='longpoll') doLongPollCycle();
+    else if(mode==='websocket'){ reqs=1; document.getElementById('stat-reqs').textContent='1 (persistent)'; doWebSocketCycle(); }
+    else doSSECycle();
+  }
+
+  function stopAll(){running=false;clearTimeout(runTimer);animating=false;}
+
+  document.querySelectorAll('.mode-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); mode=btn.dataset.mode; stopAll(); reqs=0; msgs=0; animating=false;
+      document.getElementById('stat-reqs').textContent='0';
+      document.getElementById('stat-msgs').textContent='0';
+      document.getElementById('stat-overhead').textContent=MODE_META[mode].overhead;
+      document.getElementById('stat-latency').textContent=MODE_META[mode].latency;
+      drawBase();
+      document.getElementById('info-box').innerHTML=`Selected <strong>${MODE_META[mode].label}</strong>. Click Start to simulate.`;
+    });
+  });
+
+  document.getElementById('btn-start').addEventListener('click',()=>{
+    if(running){stopAll();document.getElementById('btn-start').textContent='▶ Start';drawBase();}
+    else{start();document.getElementById('btn-start').textContent='⏸ Stop';}
+  });
+
+  document.getElementById('btn-send').addEventListener('click',()=>{
+    if(mode==='websocket'&&running){msgs++;document.getElementById('stat-msgs').textContent=msgs;animatePacket(true,'MSG',MODE_META[mode].color);}
+    else document.getElementById('info-box').innerHTML='Send Message works best in WebSocket mode while running.';
+  });
+
+  document.getElementById('btn-reset').addEventListener('click',()=>{
+    stopAll(); reqs=0; msgs=0; animating=false;
+    document.getElementById('btn-start').textContent='▶ Start';
+    document.getElementById('stat-reqs').textContent='0';
+    document.getElementById('stat-msgs').textContent='0';
+    document.getElementById('stat-overhead').textContent=MODE_META[mode].overhead;
+    document.getElementById('stat-latency').textContent=MODE_META[mode].latency;
+    drawBase();
+    document.getElementById('info-box').innerHTML='Select a communication mode and click Start to see how messages are exchanged.';
+  });
+
+  drawBase();
+</script>
+</body>
+</html>

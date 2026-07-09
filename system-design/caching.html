@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caching — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #cache-svg { min-width:400px; }
+      .eviction-row { flex-wrap:wrap; gap:0.4rem; justify-content:center; }
+    }
+  </style>
+  <style>
+    #cache-svg { width:100%; overflow:visible; }
+    .cache-grid { display:flex; flex-direction:column; gap:4px; }
+    .cache-slot { display:flex; align-items:center; gap:6px; }
+    .slot-idx  { width:28px; font-size:0.7rem; color:var(--text-muted); text-align:right; }
+    .slot-cell { flex:1; height:36px; border:1.5px solid var(--border); background:var(--surface2);
+      border-radius:7px; display:flex; align-items:center; padding:0 10px;
+      font-size:0.85rem; font-weight:600; color:var(--text); gap:8px; position:relative; }
+    .slot-cell.hit   { border-color:var(--accent3); background:rgba(67,233,123,0.1); color:var(--accent3); }
+    .slot-cell.evict { border-color:var(--accent2); background:rgba(255,101,132,0.1); color:var(--accent2); }
+    .slot-cell .lru-badge { margin-left:auto; font-size:0.65rem; color:var(--text-muted);
+      background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+    .policy-btns { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem; justify-content:center; }
+    .policy-btn { padding:0.35rem 0.9rem; border-radius:999px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.8rem; cursor:pointer; transition:all 0.2s; }
+    .policy-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .request-input { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; width:80px; text-align:center; }
+    .stat-row-inline { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.35rem 0.9rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    .hit-rate-bar { height:8px; border-radius:4px; background:var(--surface2); border:1px solid var(--border);
+      width:200px; margin:0 auto; overflow:hidden; }
+    .hit-rate-fill { height:100%; background:linear-gradient(90deg, var(--accent3), var(--accent));
+      border-radius:4px; transition:width 0.4s; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Caching</h1>
+  <p class="subtitle">Cache Hit · Cache Miss · Eviction (LRU / LFU / FIFO)</p>
+
+  <div class="stage" style="flex-direction:column; gap:1rem; min-height:300px;">
+    <!-- diagram -->
+    <svg id="cache-svg" viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg">
+      <!-- Client -->
+      <rect x="20" y="70" width="100" height="50" rx="10" fill="#1a1d27" stroke="#2e3148" stroke-width="1.5"/>
+      <text x="70" y="90" text-anchor="middle" dominant-baseline="middle" fill="#e8eaf6" font-size="12" font-weight="700" font-family="'Segoe UI',system-ui,sans-serif">Client</text>
+      <text x="70" y="108" text-anchor="middle" dominant-baseline="middle" fill="#8b8fa8" font-size="9" font-family="'Segoe UI',system-ui,sans-serif">Browser / App</text>
+
+      <!-- Cache -->
+      <rect id="cache-box" x="240" y="60" width="120" height="70" rx="10" fill="#1a1d27" stroke="#6c63ff" stroke-width="2"/>
+      <text x="300" y="88" text-anchor="middle" dominant-baseline="middle" fill="#a09cf7" font-size="12" font-weight="700" font-family="'Segoe UI',system-ui,sans-serif">Cache</text>
+      <text id="cache-policy-label" x="300" y="108" text-anchor="middle" dominant-baseline="middle" fill="#8b8fa8" font-size="9" font-family="'Segoe UI',system-ui,sans-serif">LRU Policy</text>
+
+      <!-- DB -->
+      <rect x="520" y="70" width="120" height="50" rx="10" fill="#1a1d27" stroke="#2e3148" stroke-width="1.5"/>
+      <text x="580" y="90" text-anchor="middle" dominant-baseline="middle" fill="#e8eaf6" font-size="12" font-weight="700" font-family="'Segoe UI',system-ui,sans-serif">Database</text>
+      <text x="580" y="108" text-anchor="middle" dominant-baseline="middle" fill="#8b8fa8" font-size="9" font-family="'Segoe UI',system-ui,sans-serif">Source of truth</text>
+
+      <!-- arrows -->
+      <line x1="120" y1="95" x2="238" y2="95" stroke="#2e3148" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ar)"/>
+      <line id="cache-db-line" x1="362" y1="95" x2="518" y2="95" stroke="#2e3148" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ar)"/>
+
+      <!-- packet -->
+      <circle id="cache-pkt" cx="-50" cy="95" r="8" fill="#ffd700" opacity="0"/>
+      <text id="cache-pkt-lbl" x="-50" y="82" text-anchor="middle" fill="#ffd700" font-size="10" font-weight="700" font-family="'Segoe UI',system-ui,sans-serif" opacity="0"/>
+
+      <!-- result tag -->
+      <rect id="result-tag" x="260" y="30" width="80" height="22" rx="5" fill="rgba(67,233,123,0.15)" stroke="#43e97b" stroke-width="1.5" opacity="0"/>
+      <text id="result-text" x="300" y="41" text-anchor="middle" dominant-baseline="middle" fill="#43e97b" font-size="11" font-weight="700" font-family="'Segoe UI',system-ui,sans-serif" opacity="0"/>
+
+      <defs>
+        <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#2e3148"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- cache slots -->
+    <div style="width:100%; max-width:400px; margin:0 auto;">
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:6px; text-align:center;">Cache Memory (capacity: 4)</div>
+      <div class="cache-grid" id="cache-grid"></div>
+    </div>
+  </div>
+
+  <div class="policy-btns">
+    <button class="policy-btn active" data-policy="lru">LRU (Least Recently Used)</button>
+    <button class="policy-btn" data-policy="lfu">LFU (Least Frequently Used)</button>
+    <button class="policy-btn" data-policy="fifo">FIFO (First In First Out)</button>
+  </div>
+
+  <div class="stat-row-inline">
+    <div class="stat-chip">Hits: <strong id="hit-count">0</strong></div>
+    <div class="stat-chip">Misses: <strong id="miss-count">0</strong></div>
+    <div class="stat-chip">Hit rate: <strong id="hit-rate">0%</strong></div>
+  </div>
+  <div class="hit-rate-bar"><div class="hit-rate-fill" id="hit-rate-fill" style="width:0%"></div></div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <label style="color:var(--text-muted);font-size:0.9rem;">Request key:</label>
+    <input class="request-input" type="number" id="req-key" value="5" min="1" max="20"/>
+    <button class="btn primary" id="btn-request">Send Request</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Enter a key (1–20) and send a request to see cache hit or miss.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const CAPACITY = 4;
+  let policy = 'lru';
+  let cache = [];      // { key, freq, order }
+  let insertOrder = 0;
+  let hits = 0, misses = 0;
+  let autoOn = false, autoTimer = null, animating = false;
+
+  const policyLabels = { lru:'LRU Policy', lfu:'LFU Policy', fifo:'FIFO Policy' };
+
+  function renderCache(highlightKey = null, isHit = null) {
+    const grid = document.getElementById('cache-grid');
+    grid.innerHTML = '';
+    for (let i = 0; i < CAPACITY; i++) {
+      const slot = document.createElement('div'); slot.className = 'cache-slot';
+      const idx = document.createElement('div'); idx.className = 'slot-idx'; idx.textContent = i;
+      const cell = document.createElement('div'); cell.className = 'slot-cell';
+      if (cache[i]) {
+        const c = cache[i];
+        const isHL = highlightKey === c.key;
+        if (isHL) cell.classList.add(isHit ? 'hit' : 'evict');
+        cell.innerHTML = `<strong>key=${c.key}</strong>`;
+        const badge = document.createElement('div'); badge.className = 'lru-badge';
+        if (policy === 'lru') badge.textContent = `used: ${c.order}`;
+        else if (policy === 'lfu') badge.textContent = `freq: ${c.freq}`;
+        else badge.textContent = `in: ${c.order}`;
+        cell.appendChild(badge);
+        if (isHL) gsap.from(cell, { scale:0.95, duration:0.2 });
+      } else {
+        cell.style.opacity = '0.4';
+        cell.textContent = 'empty';
+      }
+      slot.appendChild(idx); slot.appendChild(cell);
+      grid.appendChild(slot);
+    }
+    updateStats();
+    document.getElementById('cache-policy-label').textContent = policyLabels[policy];
+  }
+
+  function evict() {
+    if (policy === 'lru') {
+      let minOrder = Infinity, minIdx = 0;
+      cache.forEach((c, i) => { if (c && c.order < minOrder) { minOrder = c.order; minIdx = i; } });
+      return minIdx;
+    } else if (policy === 'lfu') {
+      let minFreq = Infinity, minIdx = 0;
+      cache.forEach((c, i) => { if (c && c.freq < minFreq) { minFreq = c.freq; minIdx = i; } });
+      return minIdx;
+    } else { // fifo
+      let minOrder = Infinity, minIdx = 0;
+      cache.forEach((c, i) => { if (c && c.order < minOrder) { minOrder = c.order; minIdx = i; } });
+      return minIdx;
+    }
+  }
+
+  function updateStats() {
+    document.getElementById('hit-count').textContent  = hits;
+    document.getElementById('miss-count').textContent = misses;
+    const total = hits + misses;
+    const rate = total ? Math.round(hits / total * 100) : 0;
+    document.getElementById('hit-rate').textContent = `${rate}%`;
+    document.getElementById('hit-rate-fill').style.width = `${rate}%`;
+  }
+
+  function sendRequest(keyOverride) {
+    if (animating) return;
+    animating = true;
+    const key = keyOverride ?? parseInt(document.getElementById('req-key').value);
+    if (isNaN(key)) { animating = false; return; }
+
+    const pkt = document.getElementById('cache-pkt');
+    const lbl = document.getElementById('cache-pkt-lbl');
+    const rTag = document.getElementById('result-tag');
+    const rTxt = document.getElementById('result-text');
+
+    // animate client → cache
+    gsap.set(pkt, { attr:{ cx:120, cy:95 }, opacity:1, fill:'#ffd700' });
+    gsap.set(lbl, { attr:{ x:120, y:82 }, opacity:1 });
+    lbl.textContent = `key=${key}`;
+
+    gsap.to([pkt, lbl], {
+      attr:{ cx:240, cy:95, x:240, y:82 }, duration:0.4, ease:'power2.inOut',
+      onComplete: () => {
+        // check cache
+        const hitIdx = cache.findIndex(c => c && c.key === key);
+        if (hitIdx !== -1) {
+          // HIT
+          hits++;
+          insertOrder++;
+          cache[hitIdx].order = insertOrder;
+          cache[hitIdx].freq  = (cache[hitIdx].freq || 1) + 1;
+          renderCache(key, true);
+          gsap.set(rTag, { opacity:1, attr:{ stroke:'#43e97b' } });
+          gsap.set(rTxt, { opacity:1, fill:'#43e97b' }); rTxt.textContent = '✓ HIT';
+          gsap.set(pkt, { fill:'#43e97b' });
+          document.getElementById('info-box').innerHTML = `✅ <strong>Cache HIT</strong> for key=<strong>${key}</strong>. Served from cache (no DB call).`;
+          gsap.to([pkt, lbl, rTag, rTxt], { opacity:0, duration:0.4, delay:0.6,
+            onComplete: () => { animating = false; }});
+        } else {
+          // MISS — go to DB
+          misses++;
+          gsap.to([pkt, lbl], {
+            attr:{ cx:520, cy:95, x:520, y:82 }, duration:0.5, ease:'power2.inOut', fill:'#ff6584',
+            onComplete: () => {
+              gsap.set(rTag, { opacity:1, attr:{ stroke:'#ff6584' } });
+              gsap.set(rTxt, { opacity:1, fill:'#ff6584' }); rTxt.textContent = '✗ MISS';
+              // store in cache
+              const emptyIdx = cache.findIndex(c => c === undefined || c === null);
+              insertOrder++;
+              let evictedKey = null;
+              if (emptyIdx !== -1) {
+                cache[emptyIdx] = { key, freq:1, order:insertOrder };
+              } else {
+                const evictIdx = evict();
+                evictedKey = cache[evictIdx].key;
+                cache[evictIdx] = { key, freq:1, order:insertOrder };
+              }
+              renderCache(key, false);
+              document.getElementById('info-box').innerHTML = `❌ <strong>Cache MISS</strong> for key=<strong>${key}</strong>. Fetched from DB.${evictedKey !== null ? ` Evicted key=<strong>${evictedKey}</strong> (${policy.toUpperCase()}).` : ' Stored in cache.'}`;
+              // return to client
+              gsap.to([pkt, lbl], { attr:{ cx:120, cy:95, x:120, y:82 }, duration:0.5, delay:0.4,
+                onComplete: () => {
+                  gsap.to([pkt, lbl, rTag, rTxt], { opacity:0, duration:0.3,
+                    onComplete: () => { animating = false; }});
+                }
+              });
+            }
+          });
+        }
+      }
+    });
+  }
+
+  document.querySelectorAll('.policy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.policy-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      policy = btn.dataset.policy;
+      reset();
+    });
+  });
+
+  document.getElementById('btn-request').addEventListener('click', () => sendRequest(null));
+
+  document.getElementById('btn-auto').addEventListener('click', () => {
+    autoOn = !autoOn;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = autoOn ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', autoOn);
+    if (autoOn) {
+      autoTimer = setInterval(() => {
+        const keys = [1,2,3,4,5,6,7,8,3,2,1,4,5,2,8];
+        sendRequest(keys[Math.floor(Math.random() * keys.length)]);
+      }, 1400);
+    } else { clearInterval(autoTimer); }
+  });
+
+  function reset() {
+    clearInterval(autoTimer); autoOn = false; animating = false;
+    document.getElementById('btn-auto').textContent = '↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    cache = []; hits = 0; misses = 0; insertOrder = 0;
+    renderCache();
+    document.getElementById('info-box').innerHTML = 'Enter a key (1–20) and send a request to see cache hit or miss.';
+    gsap.set(['#cache-pkt','#cache-pkt-lbl','#result-tag','#result-text'], { opacity:0 });
+  }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+
+  // seed
+  [3, 7, 12, 1].forEach(k => {
+    cache.push({ key:k, freq:1, order:++insertOrder });
+  });
+  renderCache();
+</script>
+</body>
+</html>

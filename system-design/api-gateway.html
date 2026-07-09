@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Gateway — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #ag-svg { width:100%; overflow:visible; }
+    .stats-row { display:flex; gap:0.75rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    .req-select { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; cursor:pointer; }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #ag-svg { min-width:420px; }
+      .req-select { width:100%; font-size:0.82rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>API Gateway</h1>
+  <p class="subtitle">Single entry point · Auth · Rate limiting · Routing · Load balancing · SSL termination</p>
+
+  <div class="stage" style="min-height:280px; overflow:visible; flex-direction:column;">
+    <svg id="ag-svg" viewBox="0 0 760 250" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">Requests: <strong id="stat-total">0</strong></div>
+    <div class="stat-chip">Auth Passed: <strong id="stat-auth">0</strong></div>
+    <div class="stat-chip">Rate Limited: <strong id="stat-limited">0</strong></div>
+    <div class="stat-chip">Routed to: <strong id="stat-route">—</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem; flex-wrap:wrap; gap:0.6rem;">
+    <label style="color:var(--text-muted);font-size:0.85rem;">Request type:</label>
+    <select class="req-select" id="req-type">
+      <option value="auth">GET /users (authenticated)</option>
+      <option value="noauth">GET /public (no auth)</option>
+      <option value="limited">POST /api (rate limited)</option>
+      <option value="heavy">GET /reports (heavy, cached)</option>
+    </select>
+    <button class="btn primary" id="btn-send">Send Request</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Select a request type and send it through the API Gateway.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('ag-svg');
+  let total=0, authPassed=0, rateLimited=0, animating=false, autoOn=false, autoTimer=null;
+  let limitCount=0;
+
+  const SERVICES=[
+    {id:'user',label:'User Service',x:620,y:40, color:'#6c63ff'},
+    {id:'order',label:'Order Service',x:620,y:110,color:'#ff6584'},
+    {id:'report',label:'Report Service',x:620,y:180,color:'#43e97b'},
+    {id:'cache',label:'Cache Layer',x:620,y:250,color:'#ffd700'},
+  ];
+  const GW={x:370,y:125};
+  const CLIENT={x:80,y:125};
+
+  const GW_STEPS=[
+    {label:'SSL Termination',color:'#6c63ff',x:GW.x-10,y:GW.y-55},
+    {label:'Auth / JWT',color:'#ff6584',x:GW.x-10,y:GW.y-25},
+    {label:'Rate Limit',color:'#ffd700',x:GW.x-10,y:GW.y+5},
+    {label:'Route / LB',color:'#43e97b',x:GW.x-10,y:GW.y+35},
+  ];
+
+  function el(tag,attrs,text){
+    const e=document.createElementNS(NS,tag);
+    for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
+    if(text!==undefined)e.textContent=text;return e;
+  }
+
+  function drawBase(highlightSteps=[], blockedAt=-1, activeService=null){
+    svg.innerHTML='';
+
+    // Client
+    svg.appendChild(el('rect',{x:CLIENT.x-35,y:CLIENT.y-24,width:80,height:48,rx:'8',fill:'#1a1d27',stroke:'#2e3148','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:CLIENT.x+5,y:CLIENT.y,'text-anchor':'middle','dominant-baseline':'middle',fill:'#e8eaf6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+
+    // Arrow client → gateway
+    svg.appendChild(el('line',{x1:CLIENT.x+45,y1:CLIENT.y,x2:GW.x-95,y2:CLIENT.y,stroke:'#2e3148','stroke-width':'1.5'}));
+
+    // Gateway box
+    svg.appendChild(el('rect',{x:GW.x-90,y:GW.y-80,width:180,height:165,rx:'12',fill:'#1a1d27',stroke:'#6c63ff','stroke-width':'2'}));
+    svg.appendChild(el('text',{x:GW.x,y:GW.y-90,'text-anchor':'middle',fill:'#6c63ff','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'API Gateway'));
+
+    // Gateway step pills
+    GW_STEPS.forEach((step,i)=>{
+      const isHL=highlightSteps.includes(i);
+      const isBlocked=blockedAt===i;
+      const color=isBlocked?'#ff6584':isHL?step.color:'#2e3148';
+      svg.appendChild(el('rect',{x:step.x-80,y:step.y-11,width:160,height:22,rx:'5',
+        fill:`rgba(${isBlocked?'255,101,132':isHL?'108,99,255':'46,49,72'},${isHL||isBlocked?0.3:0.15})`,stroke:color,'stroke-width':'1.5'}));
+      svg.appendChild(el('text',{x:step.x,y:step.y,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:isBlocked?'#ff6584':isHL?step.color:'#8b8fa8','font-size':'9','font-weight':'700',
+        'font-family':"'Segoe UI',system-ui,sans-serif"},isBlocked?'🚫 '+step.label:step.label));
+    });
+
+    // Arrow gateway → services
+    SERVICES.forEach(svc=>{
+      const isActive=svc.id===activeService;
+      svg.appendChild(el('line',{x1:GW.x+90,y1:GW.y,x2:svc.x-45,y2:svc.y,
+        stroke:isActive?svc.color:'#2e3148','stroke-width':isActive?2:1,'stroke-dasharray':isActive?'none':'4 3'}));
+      svg.appendChild(el('rect',{x:svc.x-45,y:svc.y-18,width:130,height:36,rx:'8',
+        fill:'#1a1d27',stroke:isActive?svc.color:'#2e3148','stroke-width':isActive?2:1.5}));
+      svg.appendChild(el('text',{x:svc.x+20,y:svc.y,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:isActive?svc.color:'#8b8fa8','font-size':'10','font-weight':'700',
+        'font-family':"'Segoe UI',system-ui,sans-serif"},svc.label));
+    });
+
+    // packet
+    svg.appendChild(el('circle',{id:'ag-pkt',cx:'-50',cy:'-50',r:'7',fill:'#ffd700',opacity:'0'}));
+  }
+
+  const REQ_CONFIG={
+    auth:   {steps:[0,1,2,3],service:'user', blocked:-1,msg:'✅ GET /users: SSL→Auth passed→Rate OK→Routed to <strong>User Service</strong>'},
+    noauth: {steps:[0,2,3],  service:'order',blocked:-1,msg:'✅ GET /public: SSL→No auth needed→Rate OK→Routed to <strong>Order Service</strong>'},
+    limited:{steps:[0,1,2],  service:null,   blocked:2, msg:'🚫 POST /api: <strong>Rate Limited!</strong> Too many requests from this client.'},
+    heavy:  {steps:[0,1,2,3],service:'cache',blocked:-1,msg:'⚡ GET /reports: SSL→Auth→Rate OK→Routed to <strong>Cache Layer</strong> (response cached)'},
+  };
+
+  function sendRequest(){
+    if(animating)return; animating=true;
+    total++;
+    const type=document.getElementById('req-type').value;
+    const cfg=REQ_CONFIG[type];
+    if(type==='limited'){limitCount++;if(limitCount%3!==0){rateLimited++;document.getElementById('stat-limited').textContent=rateLimited;drawBase([0,1,2],-1,null);gsap.set('#ag-pkt',{attr:{cx:CLIENT.x+5,cy:CLIENT.y},opacity:1,fill:'#ff6584'});gsap.to('#ag-pkt',{attr:{cx:GW.x,cy:GW.y},duration:0.4,ease:'power2.inOut',onComplete:()=>{gsap.to('#ag-pkt',{attr:{cx:CLIENT.x+5,cy:CLIENT.y},duration:0.3,delay:0.3,ease:'power2.out',onComplete:()=>{gsap.to('#ag-pkt',{opacity:0,duration:0.2,onComplete:()=>{animating=false;}});}});document.getElementById('info-box').innerHTML=cfg.msg;}});document.getElementById('stat-total').textContent=total;document.getElementById('stat-route').textContent='Blocked';return;}}
+    authPassed++;
+    drawBase(cfg.steps, cfg.blocked, cfg.service);
+    const pkt=document.getElementById('ag-pkt');
+    gsap.set(pkt,{attr:{cx:CLIENT.x+5,cy:CLIENT.y},opacity:1,fill:'#ffd700'});
+    gsap.to(pkt,{attr:{cx:GW.x,cy:GW.y},duration:0.45,ease:'power2.inOut',onComplete:()=>{
+      if(cfg.service){
+        const svc=SERVICES.find(s=>s.id===cfg.service);
+        gsap.set(pkt,{fill:svc.color});
+        gsap.to(pkt,{attr:{cx:svc.x+20,cy:svc.y},duration:0.4,ease:'power2.inOut',onComplete:()=>{
+          gsap.to(pkt,{attr:{cx:CLIENT.x+5,cy:CLIENT.y},duration:0.35,delay:0.3,ease:'power2.out',onComplete:()=>{gsap.to(pkt,{opacity:0,duration:0.2,onComplete:()=>{animating=false;}});}});
+          document.getElementById('stat-route').textContent=SERVICES.find(s=>s.id===cfg.service).label;
+        }});
+      } else {gsap.to(pkt,{attr:{cx:CLIENT.x+5,cy:CLIENT.y},duration:0.3,delay:0.3,ease:'power2.out',onComplete:()=>{gsap.to(pkt,{opacity:0,duration:0.2,onComplete:()=>{animating=false;}});}});}
+      document.getElementById('info-box').innerHTML=cfg.msg;
+      document.getElementById('stat-total').textContent=total;
+      document.getElementById('stat-auth').textContent=authPassed;
+    }});
+  }
+
+  document.getElementById('btn-send').addEventListener('click',sendRequest);
+  document.getElementById('btn-auto').addEventListener('click',()=>{
+    autoOn=!autoOn;
+    const btn=document.getElementById('btn-auto');
+    btn.textContent=autoOn?'↻ Loop: On':'↻ Loop: Off';
+    btn.classList.toggle('primary',autoOn);
+    if(autoOn) autoTimer=setInterval(()=>{
+      const types=['auth','noauth','limited','heavy'];
+      document.getElementById('req-type').value=types[Math.floor(Math.random()*types.length)];
+      sendRequest();
+    },1400);
+    else clearInterval(autoTimer);
+  });
+  document.getElementById('btn-reset').addEventListener('click',()=>{
+    clearInterval(autoTimer);autoOn=false;animating=false;total=0;authPassed=0;rateLimited=0;limitCount=0;
+    document.getElementById('btn-auto').textContent='↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    document.getElementById('stat-total').textContent='0';
+    document.getElementById('stat-auth').textContent='0';
+    document.getElementById('stat-limited').textContent='0';
+    document.getElementById('stat-route').textContent='—';
+    drawBase();
+    document.getElementById('info-box').innerHTML='Select a request type and send it through the API Gateway.';
+  });
+
+  drawBase();
+</script>
+</body>
+</html>

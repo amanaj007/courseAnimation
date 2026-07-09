@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CAP Theorem — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #cap-svg { min-width:360px; }
+      .cap-cards { flex-direction:column; gap:0.75rem; }
+      .cap-card { min-width:0; width:100%; }
+    }
+  </style>
+  <style>
+    #cap-svg { width:100%; overflow:visible; }
+    .cap-cards { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:1rem; }
+    .cap-card { background:var(--surface); border:2px solid var(--border); border-radius:14px;
+      padding:1.25rem 1.5rem; min-width:180px; max-width:220px; cursor:pointer; transition:all 0.2s; }
+    .cap-card:hover { border-color:var(--accent); transform:translateY(-3px); }
+    .cap-card.selected { border-color:var(--accent); background:rgba(108,99,255,0.08); }
+    .cap-card h3 { font-size:1rem; margin-bottom:0.3rem; }
+    .cap-card p  { font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.5rem; }
+    .cap-card .examples { font-size:0.72rem; color:var(--accent); font-weight:600; }
+    .partition-btn { padding:0.5rem 1.25rem; border-radius:8px; border:1.5px solid var(--accent2);
+      background:rgba(255,101,132,0.1); color:var(--accent2); font-size:0.9rem; cursor:pointer; transition:all 0.2s; }
+    .partition-btn:hover { background:var(--accent2); color:#fff; }
+    .partition-btn.active { background:var(--accent2); color:#fff; }
+    .node-legend { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-top:0.75rem;
+      font-size:0.75rem; color:var(--text-muted); }
+    .legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>CAP Theorem</h1>
+  <p class="subtitle">A distributed system can guarantee at most 2 of: Consistency · Availability · Partition Tolerance</p>
+
+  <div class="stage" style="min-height:280px; overflow:visible; flex-direction:column; gap:0.5rem;">
+    <svg id="cap-svg" viewBox="0 0 760 240" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="node-legend">
+      <span><span class="legend-dot" style="background:#43e97b;"></span>Synced node</span>
+      <span><span class="legend-dot" style="background:#ff6584;"></span>Stale / unavailable</span>
+      <span><span class="legend-dot" style="background:#ffd700;"></span>Request packet</span>
+      <span><span class="legend-dot" style="background:#e8eaf6; border:1px solid #2e3148;"></span>Partition wall</span>
+    </div>
+  </div>
+
+  <!-- CAP selector cards -->
+  <div class="cap-cards">
+    <div class="cap-card selected" data-type="cp">
+      <h3 style="color:#6c63ff;">CP System</h3>
+      <p>Consistency + Partition Tolerance. On partition, refuses writes to stay consistent. May be unavailable.</p>
+      <div class="examples">e.g. HBase, Zookeeper, MongoDB</div>
+    </div>
+    <div class="cap-card" data-type="ap">
+      <h3 style="color:#ff6584;">AP System</h3>
+      <p>Availability + Partition Tolerance. Always responds but may return stale data during partition.</p>
+      <div class="examples">e.g. Cassandra, CouchDB, DynamoDB</div>
+    </div>
+    <div class="cap-card" data-type="ca">
+      <h3 style="color:#43e97b;">CA System</h3>
+      <p>Consistency + Availability. No partition tolerance — only works on a single node (not distributed).</p>
+      <div class="examples">e.g. Traditional RDBMS (single node)</div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:1rem; justify-content:center; margin-top:1rem; flex-wrap:wrap;">
+    <button class="partition-btn" id="btn-partition">⚡ Simulate Network Partition</button>
+    <button class="btn primary" id="btn-write">Send Write</button>
+    <button class="btn" id="btn-read">Send Read</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Select a system type and simulate operations or a network partition.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS  = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('cap-svg');
+
+  let capType     = 'cp';
+  let partitioned = false;
+  let nodeStates  = ['synced','synced','synced']; // synced | stale | down
+  let animating   = false;
+  let looping     = false;
+  let loopTimer   = null;
+  let loopStep    = 0;
+
+  const NODES = [
+    { id:0, x:120,  y:130, label:'Node A', role:'Primary'  },
+    { id:1, x:380,  y:130, label:'Node B', role:'Replica'  },
+    { id:2, x:640,  y:130, label:'Node C', role:'Replica'  },
+  ];
+  const CLIENT = { x:380, y:20 };
+
+  function nodeColor(state) {
+    return { synced:'rgba(67,233,123,0.15)', stale:'rgba(255,101,132,0.15)', down:'rgba(255,101,132,0.08)' }[state];
+  }
+  function nodeStroke(state) {
+    return { synced:'#43e97b', stale:'#ff6584', down:'#ff6584' }[state];
+  }
+  function nodeTextColor(state) {
+    return { synced:'#43e97b', stale:'#ff6584', down:'#8b8fa8' }[state];
+  }
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function drawBase() {
+    svg.innerHTML = '';
+
+    const defs = el('defs', {});
+    const mk = el('marker', { id:'capar', markerWidth:'8', markerHeight:'8', refX:'6', refY:'3', orient:'auto' });
+    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#2e3148' }));
+    defs.appendChild(mk);
+    svg.appendChild(defs);
+
+    // replication links
+    svg.appendChild(el('line', { x1:NODES[0].x, y1:NODES[0].y, x2:NODES[1].x, y2:NODES[1].y,
+      stroke:'#2e3148', 'stroke-width':'2', 'stroke-dasharray':'5 3', id:'link-0-1', 'marker-end':'url(#capar)' }));
+    svg.appendChild(el('line', { x1:NODES[1].x, y1:NODES[1].y, x2:NODES[2].x, y2:NODES[2].y,
+      stroke:'#2e3148', 'stroke-width':'2', 'stroke-dasharray':'5 3', id:'link-1-2', 'marker-end':'url(#capar)' }));
+
+    // partition wall
+    if (partitioned) {
+      svg.appendChild(el('line', { x1:260, y1:70, x2:260, y2:200,
+        stroke:'#ff6584', 'stroke-width':'3', 'stroke-dasharray':'8 4', opacity:'0.7', id:'partition-wall' }));
+      svg.appendChild(el('text', { x:260, y:60, 'text-anchor':'middle', fill:'#ff6584',
+        'font-size':'10', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, '⚡ PARTITION'));
+    }
+
+    // client
+    svg.appendChild(el('rect', { x:CLIENT.x-50, y:CLIENT.y, width:100, height:32, rx:'8',
+      fill:'#1a1d27', stroke:'#2e3148', 'stroke-width':'1.5' }));
+    svg.appendChild(el('text', { x:CLIENT.x, y:CLIENT.y+16, 'text-anchor':'middle', 'dominant-baseline':'middle',
+      fill:'#e8eaf6', 'font-size':'11', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Client'));
+
+    // nodes
+    NODES.forEach((n, i) => {
+      const state = nodeStates[i];
+      const g = el('g', { id:`cap-node-g-${i}` });
+      g.appendChild(el('rect', { x:n.x-55, y:n.y-40, width:110, height:80, rx:'12',
+        fill:nodeColor(state), stroke:nodeStroke(state), 'stroke-width':'2', id:`cap-node-rect-${i}` }));
+      g.appendChild(el('text', { x:n.x, y:n.y-16, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:nodeTextColor(state), 'font-size':'13', 'font-weight':'700',
+        'font-family':"'Segoe UI',system-ui,sans-serif" }, n.label));
+      g.appendChild(el('text', { x:n.x, y:n.y+2, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, n.role));
+      g.appendChild(el('text', { x:n.x, y:n.y+20, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:nodeTextColor(state), 'font-size':'9', 'font-weight':'700',
+        'font-family':"'Segoe UI',system-ui,sans-serif", id:`cap-node-state-${i}` },
+        state === 'down' ? '🔴 Unavailable' : state === 'stale' ? '🟡 Stale data' : '🟢 Synced'));
+      svg.appendChild(g);
+
+      // client → node[1] line
+      if (i === 1) {
+        svg.appendChild(el('line', { x1:CLIENT.x, y1:CLIENT.y+32, x2:n.x, y2:n.y-40,
+          stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#capar)' }));
+      }
+    });
+
+    // packet
+    svg.appendChild(el('circle', { id:'cap-pkt', cx:'-50', cy:'-50', r:'7', fill:'#ffd700', opacity:'0' }));
+    svg.appendChild(el('text',   { id:'cap-pkt-lbl', x:'-50', y:'-38', 'text-anchor':'middle',
+      fill:'#ffd700', 'font-size':'9', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif", opacity:'0' }, ''));
+  }
+
+  function updateNodeVisuals() {
+    NODES.forEach((n, i) => {
+      const state = nodeStates[i];
+      const rect  = document.getElementById(`cap-node-rect-${i}`);
+      const stateEl = document.getElementById(`cap-node-state-${i}`);
+      if (rect) { rect.setAttribute('fill', nodeColor(state)); rect.setAttribute('stroke', nodeStroke(state)); }
+      if (stateEl) {
+        stateEl.setAttribute('fill', nodeTextColor(state));
+        stateEl.textContent = state === 'down' ? '🔴 Unavailable' : state === 'stale' ? '🟡 Stale data' : '🟢 Synced';
+      }
+    });
+  }
+
+  document.querySelectorAll('.cap-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.cap-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      capType = card.dataset.type;
+      reset();
+    });
+  });
+
+  document.getElementById('btn-partition').addEventListener('click', () => {
+    partitioned = !partitioned;
+    const btn = document.getElementById('btn-partition');
+    btn.classList.toggle('active', partitioned);
+    btn.textContent = partitioned ? '🔧 Heal Partition' : '⚡ Simulate Network Partition';
+
+    if (partitioned) {
+      if (capType === 'cp') {
+        nodeStates = ['synced','down','down'];
+        document.getElementById('info-box').innerHTML = `<strong>CP System + Partition:</strong> Nodes B & C become <strong>unavailable</strong> to maintain consistency. No stale reads allowed.`;
+      } else if (capType === 'ap') {
+        nodeStates = ['synced','stale','stale'];
+        document.getElementById('info-box').innerHTML = `<strong>AP System + Partition:</strong> Nodes B & C still respond but may return <strong>stale data</strong>. Availability over consistency.`;
+      } else {
+        nodeStates = ['synced','down','down'];
+        document.getElementById('info-box').innerHTML = `<strong>CA System + Partition:</strong> CA systems can't truly tolerate partitions. System would typically fail or degrade.`;
+      }
+    } else {
+      nodeStates = ['synced','synced','synced'];
+      document.getElementById('info-box').innerHTML = 'Partition healed. All nodes synced.';
+    }
+    drawBase(); updateNodeVisuals();
+  });
+
+  document.getElementById('btn-write').addEventListener('click', () => {
+    if (animating) return; animating = true;
+    const pkt = document.getElementById('cap-pkt');
+    const lbl = document.getElementById('cap-pkt-lbl');
+    lbl.textContent = 'WRITE';
+    gsap.set(pkt, { attr:{ cx:CLIENT.x, cy:CLIENT.y+32 }, opacity:1, fill:'#ffd700' });
+    gsap.set(lbl, { attr:{ x:CLIENT.x, y:CLIENT.y+18 }, opacity:1 });
+
+    gsap.to([pkt, lbl], {
+      attr:{ cx:NODES[0].x, cy:NODES[0].y, x:NODES[0].x, y:NODES[0].y-14 }, duration:0.4, ease:'power2.inOut',
+      onComplete: () => {
+        if (partitioned && capType === 'cp') {
+          gsap.set(pkt, { fill:'#ff6584' });
+          document.getElementById('info-box').innerHTML = `<strong>CP:</strong> Write rejected during partition to maintain consistency. Error returned to client.`;
+          gsap.to([pkt, lbl], { opacity:0, duration:0.4, delay:0.3, onComplete: () => { animating = false; } });
+        } else {
+          // replicate
+          gsap.set(pkt, { fill:'#43e97b' });
+          const targets = partitioned ? [] : [1,2];
+          let done = 0;
+          if (!targets.length) {
+            document.getElementById('info-box').innerHTML = `<strong>${capType.toUpperCase()}:</strong> Write accepted on Node A only (partition active).`;
+            gsap.to([pkt, lbl], { opacity:0, duration:0.3, onComplete: () => { animating = false; } });
+            return;
+          }
+          targets.forEach((tIdx, i) => {
+            const clone = pkt.cloneNode(); clone.setAttribute('cx', NODES[0].x); clone.setAttribute('cy', NODES[0].y);
+            clone.setAttribute('fill', '#43e97b'); clone.setAttribute('opacity','1'); clone.setAttribute('r','6');
+            svg.appendChild(clone);
+            gsap.to(clone, {
+              attr:{ cx:NODES[tIdx].x, cy:NODES[tIdx].y }, duration:0.45, delay:i*0.1, ease:'power2.inOut',
+              onComplete: () => { clone.remove(); done++;
+                if (done === targets.length) {
+                  gsap.to([pkt, lbl], { opacity:0, duration:0.3, onComplete: () => { animating = false; } });
+                  document.getElementById('info-box').innerHTML = `Write replicated to all ${targets.length+1} nodes. All synced. ✅`;
+                }
+              }
+            });
+          });
+        }
+      }
+    });
+  });
+
+  document.getElementById('btn-read').addEventListener('click', () => {
+    if (animating) return; animating = true;
+    const pkt = document.getElementById('cap-pkt');
+    const lbl = document.getElementById('cap-pkt-lbl');
+    lbl.textContent = 'READ';
+    gsap.set(pkt, { attr:{ cx:CLIENT.x, cy:CLIENT.y+32 }, opacity:1, fill:'#a09cf7' });
+    gsap.set(lbl, { attr:{ x:CLIENT.x, y:CLIENT.y+18 }, opacity:1 });
+
+    // read from random node
+    const targetNode = partitioned && capType === 'cp' ? 0 : Math.floor(Math.random() * 3);
+    const node = NODES[targetNode];
+
+    gsap.to([pkt, lbl], {
+      attr:{ cx:node.x, cy:node.y, x:node.x, y:node.y-14 }, duration:0.45, ease:'power2.inOut',
+      onComplete: () => {
+        const state = nodeStates[targetNode];
+        const msg = state === 'down'  ? `Node ${node.label} is <strong>down</strong> — read failed.`
+                  : state === 'stale' ? `Read from Node ${node.label} — may return <strong>stale data</strong> (AP behavior).`
+                  : `Read from Node ${node.label} — returns <strong>consistent data</strong>. ✅`;
+        document.getElementById('info-box').innerHTML = msg;
+        gsap.to([pkt, lbl], { opacity:0, duration:0.4, delay:0.3, onComplete: () => { animating = false; } });
+      }
+    });
+  });
+
+  function doLoopStep() {
+    if (!looping) return;
+    const actions = ['write','read','read','write','read'];
+    const action = actions[loopStep % actions.length];
+    loopStep++;
+    if (action === 'write') document.getElementById('btn-write').click();
+    else document.getElementById('btn-read').click();
+    loopTimer = setTimeout(doLoopStep, 1800);
+  }
+
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+    if (looping) { loopStep = 0; doLoopStep(); }
+    else { clearTimeout(loopTimer); }
+  });
+
+  function reset() {
+    partitioned = false; animating = false; nodeStates = ['synced','synced','synced'];
+    looping = false; clearTimeout(loopTimer);
+    document.getElementById('btn-loop').textContent = '↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    document.getElementById('btn-partition').classList.remove('active');
+    document.getElementById('btn-partition').textContent = '⚡ Simulate Network Partition';
+    drawBase(); updateNodeVisuals();
+    document.getElementById('info-box').innerHTML = 'Select a system type and simulate operations or a network partition.';
+  }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  drawBase();
+</script>
+</body>
+</html>

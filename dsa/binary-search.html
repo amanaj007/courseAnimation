@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binary Search — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    /* ── Array cells ── */
+    .array-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      width: 100%;
+    }
+
+    .array-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 480px) {
+      .cell { width:38px; height:38px; border-radius:7px; }
+      .cell .val { font-size:0.82rem; }
+      .cell .idx { font-size:0.5rem; }
+      .array-row { gap:3px; }
+      .pointer-row { gap:3px; }
+      .pointer-slot { width:38px; }
+    }
+    .cell {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .cell .val {
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .cell .idx {
+      font-size: 0.58rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      line-height: 1;
+      opacity: 0.8;
+    }
+
+    .cell.active {
+      border-color: var(--highlight);
+      background: rgba(255, 215, 0, 0.12);
+      color: var(--highlight);
+    }
+
+    .cell.eliminated {
+      opacity: 0.3;
+    }
+
+    .cell.found {
+      border-color: var(--accent3);
+      background: rgba(67, 233, 123, 0.15);
+      color: var(--accent3);
+    }
+
+    /* pointer row */
+    .pointer-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .pointer-slot {
+      width: 52px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      border-radius: 4px;
+      color: transparent;
+    }
+
+    .pointer-slot.lo  { background: rgba(108, 99, 255, 0.2); color: var(--accent); }
+    .pointer-slot.hi  { background: rgba(255, 101, 132, 0.2); color: var(--accent2); }
+    .pointer-slot.mid { background: rgba(255, 215, 0, 0.2);   color: var(--highlight); }
+    .pointer-slot.lo-hi  { background: rgba(108, 99, 255, 0.2); color: var(--accent); }
+
+    /* legend */
+    .legend {
+      display: flex;
+      gap: 1.2rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .step-counter {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* target selector */
+    .target-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
+    .target-row label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .target-row select {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="logo">Anim<span>Studio</span></div>
+    <ul>
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="binary-search.html">DSA</a></li>
+      <li><a href="../system-design/load-balancer.html">System Design</a></li>
+    </ul>
+  </nav>
+
+  <div class="anim-page">
+    <a class="back-link" href="../index.html">← Back to Home</a>
+    <h1>Binary Search</h1>
+    <p class="subtitle">Sorted array · O(log n) time complexity</p>
+
+    <!-- stage -->
+    <div class="stage">
+      <div class="array-wrapper">
+        <div class="pointer-row" id="pointer-row"></div>
+        <div class="array-row"   id="array-row"></div>
+        <div class="step-counter" id="step-counter">Press <strong>Play</strong> to start</div>
+
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent)"></div> lo
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent2)"></div> hi
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--highlight)"></div> mid (checked)
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent3)"></div> found
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- controls -->
+    <div class="target-row">
+      <label>Search for:</label>
+      <select id="target-select"></select>
+    </div>
+
+    <div class="controls">
+      <button class="btn primary" id="btn-play">▶ Play</button>
+      <button class="btn" id="btn-step">Step →</button>
+      <button class="btn" id="btn-loop">↻ Loop: Off</button>
+      <button class="btn" id="btn-reset">↺ Reset</button>
+    </div>
+
+    <div class="info-box" id="info-box">
+      Choose a target value and press <strong>Play</strong> or <strong>Step</strong>.
+    </div>
+  </div>
+
+  <footer>Built with GSAP &mdash; Course Animations</footer>
+
+  <!-- GSAP CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script>
+    /* ── Data ── */
+    const ARR = [3, 7, 12, 18, 24, 31, 45, 56, 68, 72, 85, 93];
+    const N   = ARR.length;
+
+    /* ── Build DOM ── */
+    const arrayRow   = document.getElementById('array-row');
+    const pointerRow = document.getElementById('pointer-row');
+    const infoBox    = document.getElementById('info-box');
+    const stepCtr    = document.getElementById('step-counter');
+    const targetSel  = document.getElementById('target-select');
+
+    // populate target dropdown (mix of present and absent values)
+    [3, 24, 45, 72, 93, 10, 50, 100].forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      targetSel.appendChild(o);
+    });
+
+    let cells = [], pSlots = [];
+
+    function buildArray() {
+      arrayRow.innerHTML   = '';
+      pointerRow.innerHTML = '';
+      cells  = [];
+      pSlots = [];
+
+      ARR.forEach((val, i) => {
+        // cell
+        const c = document.createElement('div');
+        c.className = 'cell';
+        c.innerHTML = `<span class="val">${val}</span><span class="idx">${i}</span>`;
+        arrayRow.appendChild(c);
+        cells.push(c);
+
+        // pointer slot
+        const p = document.createElement('div');
+        p.className = 'pointer-slot';
+        pointerRow.appendChild(p);
+        pSlots.push(p);
+      });
+    }
+
+    buildArray();
+
+    /* ── Binary Search state machine ── */
+    let steps = [];   // pre-computed steps
+    let stepIdx = 0;
+    let playing = false;
+    let playTimer = null;
+    let looping = false;
+
+    function computeSteps(target) {
+      const result = [];
+      let lo = 0, hi = N - 1;
+      while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        result.push({ lo, hi, mid, target, found: ARR[mid] === target });
+        if (ARR[mid] === target) break;
+        if (ARR[mid] < target) lo = mid + 1;
+        else                   hi = mid - 1;
+      }
+      if (steps.length && result[result.length - 1] && !result[result.length - 1].found) {
+        result.push({ lo: -1, hi: -1, mid: -1, target, found: false, notFound: true });
+      } else if (!result.length) {
+        result.push({ lo: -1, hi: -1, mid: -1, target, found: false, notFound: true });
+      }
+      return result;
+    }
+
+    function resetVisual() {
+      cells.forEach(c => { c.className = 'cell'; });
+      pSlots.forEach(p => { p.className = 'pointer-slot'; p.textContent = ''; });
+      gsap.set(cells, { clearProps: 'all' });
+    }
+
+    function renderStep(s) {
+      resetVisual();
+
+      if (s.notFound) {
+        infoBox.innerHTML = `<strong>Not found!</strong> ${s.target} is not in the array.`;
+        stepCtr.innerHTML = `Search complete — value not found`;
+        return;
+      }
+
+      // shade eliminated cells
+      cells.forEach((c, i) => {
+        if (i < s.lo || i > s.hi) c.classList.add('eliminated');
+      });
+
+      // highlight mid
+      if (s.found) {
+        cells[s.mid].classList.add('found');
+      } else {
+        cells[s.mid].classList.add('active');
+      }
+
+      // pointer labels
+      const setPtr = (idx, label, cls) => {
+        if (idx < 0 || idx >= N) return;
+        // if multiple pointers land on same cell, combine
+        const existing = pSlots[idx].textContent;
+        pSlots[idx].textContent = existing ? existing + '/' + label : label;
+        pSlots[idx].className   = 'pointer-slot ' + (existing ? 'lo-hi' : cls);
+      };
+
+      setPtr(s.lo,  'lo',  'lo');
+      setPtr(s.hi,  'hi',  'hi');
+      setPtr(s.mid, 'mid', 'mid');
+
+      // GSAP pop on mid
+      gsap.fromTo(cells[s.mid],
+        { scale: 0.85, opacity: 0.5 },
+        { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(2)' }
+      );
+
+      if (s.found) {
+        gsap.to(cells[s.mid], {
+          boxShadow: '0 0 20px rgba(67,233,123,0.6)',
+          duration: 0.6, repeat: -1, yoyo: true, ease: 'sine.inOut'
+        });
+        infoBox.innerHTML = `🎉 <strong>Found ${s.target}</strong> at index <strong>${s.mid}</strong>!`;
+        stepCtr.innerHTML = `Step ${stepIdx + 1} / ${steps.length} — Found!`;
+      } else {
+        const dir = ARR[s.mid] < s.target ? 'right half' : 'left half';
+        infoBox.innerHTML = `Checking index <strong>${s.mid}</strong> → value <strong>${ARR[s.mid]}</strong>. 
+          ${ARR[s.mid] < s.target ? `${ARR[s.mid]} &lt; ${s.target}, move to <strong>${dir}</strong>` : `${ARR[s.mid]} &gt; ${s.target}, move to <strong>${dir}</strong>`}`;
+        stepCtr.innerHTML = `Step ${stepIdx + 1} / ${steps.length}`;
+      }
+    }
+
+    function reset() {
+      clearTimeout(playTimer);
+      playing = false;
+      stepIdx = 0;
+      steps   = [];
+      resetVisual();
+      infoBox.innerHTML   = 'Choose a target value and press <strong>Play</strong> or <strong>Step</strong>.';
+      stepCtr.textContent = `Press Play to start`;
+      document.getElementById('btn-play').textContent = '▶ Play';
+    }
+
+    function initSteps() {
+      const target = parseInt(targetSel.value);
+      steps = computeSteps(target);
+      stepIdx = 0;
+    }
+
+    /* ── Controls ── */
+    document.getElementById('btn-reset').addEventListener('click', reset);
+
+    document.getElementById('btn-step').addEventListener('click', () => {
+      clearTimeout(playTimer);
+      playing = false;
+      document.getElementById('btn-play').textContent = '▶ Play';
+
+      if (!steps.length) initSteps();
+      if (stepIdx < steps.length) {
+        renderStep(steps[stepIdx]);
+        stepIdx++;
+      }
+    });
+
+    document.getElementById('btn-play').addEventListener('click', () => {
+      if (playing) {
+        clearTimeout(playTimer);
+        playing = false;
+        document.getElementById('btn-play').textContent = '▶ Play';
+        return;
+      }
+
+      if (!steps.length || stepIdx >= steps.length) {
+        reset();
+        initSteps();
+      }
+
+      playing = true;
+      document.getElementById('btn-play').textContent = '⏸ Pause';
+
+      function playNext() {
+        if (!playing) {
+          document.getElementById('btn-play').textContent = '▶ Play';
+          return;
+        }
+        if (stepIdx >= steps.length) {
+          if (looping) {
+            playTimer = setTimeout(() => {
+              resetVisual();
+              initSteps();
+              playNext();
+            }, 1400);
+          } else {
+            playing = false;
+            document.getElementById('btn-play').textContent = '▶ Play';
+          }
+          return;
+        }
+        renderStep(steps[stepIdx]);
+        stepIdx++;
+        playTimer = setTimeout(playNext, 1200);
+      }
+      playNext();
+    });
+
+    targetSel.addEventListener('change', reset);
+
+    document.getElementById('btn-loop').addEventListener('click', () => {
+      looping = !looping;
+      const btn = document.getElementById('btn-loop');
+      btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+      btn.classList.toggle('primary', looping);
+    });
+  </script>
+
+</body>
+</html>

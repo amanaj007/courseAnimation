@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Course Animations</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .section-heading {
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 2.5rem 0 1rem;
+    }
+    .section-heading span {
+      display: inline-block;
+      padding: 0.2rem 1rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+    }
+    .dsa-label   { background: rgba(108,99,255,0.12); color: var(--accent); }
+    .sd-label    { background: rgba(255,101,132,0.12); color: var(--accent2); }
+    .tag.sd      { background: rgba(255,101,132,0.15); color: var(--accent2); }
+    .cards       { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .count-badge {
+      display: inline-block;
+      margin-left: 0.5rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.5rem;
+      color: var(--text-muted);
+      vertical-align: middle;
+    }
+    @media (max-width: 600px) {
+      .cards { grid-template-columns: 1fr; }
+      .section-heading { font-size: 0.85rem; letter-spacing: 1px; }
+    }
+    @media (max-width: 480px) {
+      .cards { grid-template-columns: 1fr; padding: 0.75rem; gap: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="logo">Anim<span>Studio</span></div>
+    <ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="dsa/binary-search.html">DSA</a></li>
+      <li><a href="system-design/load-balancer.html">System Design</a></li>
+    </ul>
+  </nav>
+
+  <section class="hero">
+    <h1>Course Animations</h1>
+    <p>Interactive GSAP-powered animations for DSA & System Design concepts — 29 topics covered.</p>
+  </section>
+
+  <!-- ── DSA Section ── -->
+  <div class="section-heading">
+    <span class="dsa-label">DSA</span>
+    &nbsp; Data Structures & Algorithms <span class="count-badge">16</span>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="dsa/binary-search.html">
+      <div class="card-icon">🔍</div>
+      <h2>Binary Search</h2>
+      <p>Step through how binary search halves the search space at each iteration. Play, pause, or step manually.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/bubble-sort.html">
+      <div class="card-icon">🫧</div>
+      <h2>Bubble Sort</h2>
+      <p>Watch adjacent swaps bubble the largest element to the end each pass. Tracks comparisons & swaps.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/linked-list.html">
+      <div class="card-icon">🔗</div>
+      <h2>Linked List</h2>
+      <p>Insert at head/tail, delete by value, and traverse a singly linked list with pointer animations.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/stack-queue.html">
+      <div class="card-icon">📚</div>
+      <h2>Stack & Queue</h2>
+      <p>Push/Pop a LIFO stack and Enqueue/Dequeue a FIFO queue side by side. Visualize LIFO vs FIFO clearly.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/bst.html">
+      <div class="card-icon">🌲</div>
+      <h2>Binary Search Tree</h2>
+      <p>Insert nodes, search by value, and animate in-order, pre-order, and post-order traversals.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/graph-bfs-dfs.html">
+      <div class="card-icon">🕸️</div>
+      <h2>Graph BFS & DFS</h2>
+      <p>Click any node to set the start. Run Breadth-First or Depth-First Search and watch the traversal unfold.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/hash-table.html">
+      <div class="card-icon">#️⃣</div>
+      <h2>Hash Table</h2>
+      <p>See how keys are hashed, where collisions occur, and how chaining resolves them. Track load factor live.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/merge-sort.html">
+      <div class="card-icon">🔀</div>
+      <h2>Merge Sort</h2>
+      <p>Watch the divide & conquer recursion split arrays and merge sorted halves. O(n log n) stable sort.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/quick-sort.html">
+      <div class="card-icon">⚡</div>
+      <h2>Quick Sort</h2>
+      <p>Visualize pivot selection, partition with left/right pointers, and in-place swaps. Average O(n log n).</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/heap.html">
+      <div class="card-icon">🏔️</div>
+      <h2>Heap (Min / Max)</h2>
+      <p>Insert and extract elements from a binary heap. Watch heapify-up and heapify-down bubble through the tree.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/dijkstra.html">
+      <div class="card-icon">🗺️</div>
+      <h2>Dijkstra's Algorithm</h2>
+      <p>Find shortest paths in a weighted graph step by step. Watch distance relaxation and the greedy frontier expand.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/dynamic-programming.html">
+      <div class="card-icon">🧮</div>
+      <h2>Dynamic Programming</h2>
+      <p>Visualize Fibonacci memoization tree, Coin Change tabulation, and Longest Common Subsequence table.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/sliding-window.html">
+      <div class="card-icon">🪟</div>
+      <h2>Sliding Window</h2>
+      <p>Reduce O(n²) to O(n). Max sum subarray with fixed window and longest unique substring with variable window.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/two-pointers.html">
+      <div class="card-icon">👆👆</div>
+      <h2>Two Pointers</h2>
+      <p>Solve Two Sum, Container With Most Water, and Remove Duplicates in O(n) by moving L & R inward.</p>
+      <span class="tag">DSA</span>
+    </a>
+
+    <a class="card" href="dsa/trie.html">
+      <div class="card-icon">🌳</div>
+      <h2>Trie (Prefix Tree)</h2>
+      <p>Build a prefix tree with insert, exact search, and prefix matching. Foundation of autocomplete systems.</p>
+      <span class="tag">DSA</span>
+    </a>
+  </div>
+
+  <!-- ── System Design Section ── -->
+  <div class="section-heading">
+    <span class="sd-label">System Design</span>
+    &nbsp; Distributed Systems Concepts <span class="count-badge">13</span>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="system-design/load-balancer.html">
+      <div class="card-icon">⚖️</div>
+      <h2>Load Balancer</h2>
+      <p>Animated packets routed via Round Robin, Random, or Least Connections across 3 backend servers.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/database-sharding.html">
+      <div class="card-icon">🗄️</div>
+      <h2>Database Sharding</h2>
+      <p>Route queries to shards using Range, Hash, or Directory strategies. See shard load balance live.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/caching.html">
+      <div class="card-icon">⚡</div>
+      <h2>Caching</h2>
+      <p>Watch cache hits serve instantly and misses fetch from the DB. Compare LRU, LFU, and FIFO eviction.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/message-queue.html">
+      <div class="card-icon">📨</div>
+      <h2>Message Queue / Pub-Sub</h2>
+      <p>Publish messages to a FIFO queue consumed by workers, or broadcast via Pub-Sub to multiple subscribers.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/cdn.html">
+      <div class="card-icon">🌐</div>
+      <h2>CDN</h2>
+      <p>Request assets from US/EU/AP edge nodes. First request hits origin; subsequent ones are cache hits.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/cap-theorem.html">
+      <div class="card-icon">📐</div>
+      <h2>CAP Theorem</h2>
+      <p>Simulate network partitions on CP, AP, and CA systems. See how each sacrifices one CAP property.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/rate-limiting.html">
+      <div class="card-icon">🚦</div>
+      <h2>Rate Limiting</h2>
+      <p>Compare Token Bucket, Leaky Bucket, Fixed Window, and Sliding Window counters. Watch requests get allowed or denied.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/consistent-hashing.html">
+      <div class="card-icon">🔄</div>
+      <h2>Consistent Hashing</h2>
+      <p>Place servers on a hash ring and route keys clockwise. Add/remove servers to see minimal remapping.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/circuit-breaker.html">
+      <div class="card-icon">⚡</div>
+      <h2>Circuit Breaker</h2>
+      <p>Watch the circuit flip Closed → Open → Half-Open after failures. Prevents cascade failures in microservices.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/replication.html">
+      <div class="card-icon">🗂️</div>
+      <h2>Leader-Follower Replication</h2>
+      <p>Sync vs async replication. Writes go to leader, reads to followers. Simulate failover and leader election.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/api-gateway.html">
+      <div class="card-icon">🚪</div>
+      <h2>API Gateway</h2>
+      <p>Watch requests flow through SSL termination, authentication, rate limiting, and routing to microservices.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/bloom-filter.html">
+      <div class="card-icon">🌸</div>
+      <h2>Bloom Filter</h2>
+      <p>Insert items and lookup membership in a probabilistic bit array. Discover false positives in action.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+
+    <a class="card" href="system-design/websocket-vs-polling.html">
+      <div class="card-icon">📡</div>
+      <h2>WebSocket vs Polling</h2>
+      <p>Compare Short Polling, Long Polling, WebSocket, and SSE side by side with animated message flows.</p>
+      <span class="tag sd">System Design</span>
+    </a>
+  </div>
+
+  <footer>Built with GSAP &mdash; Course Animations &mdash; 29 interactive topics</footer>
+
+</body>
+</html>

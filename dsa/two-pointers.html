@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Two Pointers — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .tp-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-bottom:2rem; }
+    .tp-cell { width:50px; height:50px; border-radius:9px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; border:2px solid var(--border);
+      background:var(--surface2); font-size:1rem; font-weight:700; color:var(--text); position:relative; }
+    .tp-cell .cidx { position:absolute; bottom:-20px; font-size:0.62rem; color:var(--text-muted); }
+    .tp-cell.left   { border-color:#6c63ff; background:rgba(108,99,255,0.15); color:#a09cf7; }
+    .tp-cell.right  { border-color:#ff6584; background:rgba(255,101,132,0.15); color:#ff6584; }
+    .tp-cell.found  { border-color:#43e97b; background:rgba(67,233,123,0.15); color:#43e97b; }
+    .tp-cell.skip   { opacity:0.3; }
+    .ptr-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-bottom:0.5rem; }
+    .ptr-slot { width:50px; height:20px; display:flex; align-items:center; justify-content:center;
+      font-size:0.65rem; font-weight:700; border-radius:4px; }
+    .ptr-slot.L { background:rgba(108,99,255,0.2); color:#6c63ff; }
+    .ptr-slot.R { background:rgba(255,101,132,0.2); color:#ff6584; }
+    .tab-row { display:flex; gap:0.5rem; justify-content:center; margin-bottom:1rem; flex-wrap:wrap; }
+    .tab-btn { padding:0.4rem 1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+    .tab-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+    .stats-row { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.5rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    @media (max-width: 480px) {
+      .tp-cell { width:36px; height:36px; font-size:0.8rem; }
+      .tp-cell .cidx { font-size:0.52rem; bottom:-16px; }
+      .tp-row { gap:3px; }
+      .ptr-row { gap:3px; }
+      .ptr-slot { width:36px; font-size:0.58rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Two Pointers</h1>
+  <p class="subtitle">O(n) by moving L & R inward · Pair sum · Container with most water · Remove duplicates</p>
+
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="twosum">Two Sum (sorted)</button>
+    <button class="tab-btn" data-tab="water">Container With Most Water</button>
+    <button class="tab-btn" data-tab="dedup">Remove Duplicates</button>
+  </div>
+
+  <div class="stage" style="flex-direction:column;gap:0.5rem;min-height:240px;">
+    <div class="ptr-row" id="ptr-row"></div>
+    <div class="tp-row"  id="tp-row"></div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">L: <strong id="stat-l">—</strong></div>
+    <div class="stat-chip">R: <strong id="stat-r">—</strong></div>
+    <div class="stat-chip" id="stat-extra-chip">Sum: <strong id="stat-extra">—</strong></div>
+    <div class="stat-chip">Step: <strong id="step-num">0</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-play">▶ Play</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Play</strong> to visualize the two-pointer technique.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const ARR_SUM   = [1,3,5,7,9,11,13,15];   const TARGET=16;
+  const ARR_WATER = [1,8,6,2,5,4,8,3,7];
+  const ARR_DEDUP = [1,1,2,3,3,3,4,5,5];
+  let activeTab='twosum', steps=[], stepIdx=0, playing=false, playTimer=null, looping=false;
+
+  function buildTwoSumSteps() {
+    const arr=ARR_SUM,s=[]; let l=0,r=arr.length-1;
+    s.push({l,r,arr,label:`Target=${TARGET}. L=0(${arr[0]}), R=${arr.length-1}(${arr[arr.length-1]}). Sum=${arr[0]+arr[arr.length-1]}`});
+    while(l<r){
+      const sum=arr[l]+arr[r];
+      if(sum===TARGET){s.push({l,r,arr,found:true,label:`🎉 Found! arr[${l}]+arr[${r}]=${arr[l]}+${arr[r]}=<strong>${sum}</strong>=Target`});break;}
+      else if(sum<TARGET){s.push({l,r,arr,label:`${arr[l]}+${arr[r]}=${sum} < ${TARGET}. Move L right.`});l++;}
+      else{s.push({l,r,arr,label:`${arr[l]}+${arr[r]}=${sum} > ${TARGET}. Move R left.`});r--;}
+      if(l<r)s.push({l,r,arr,label:`New: L=${l}(${arr[l]}), R=${r}(${arr[r]}). Sum=${arr[l]+arr[r]}`});
+    }
+    return s;
+  }
+
+  function buildWaterSteps() {
+    const arr=ARR_WATER,s=[]; let l=0,r=arr.length-1,maxW=0,bestL=0,bestR=0;
+    s.push({l,r,arr,water:0,maxW,label:`Max Water problem. L=0, R=${arr.length-1}.`});
+    while(l<r){
+      const w=Math.min(arr[l],arr[r])*(r-l);
+      if(w>maxW){maxW=w;bestL=l;bestR=r;}
+      s.push({l,r,arr,water:w,maxW,bestL,bestR,label:`water=min(${arr[l]},${arr[r]})×(${r}-${l})=${Math.min(arr[l],arr[r])}×${r-l}=<strong>${w}</strong>. Max=${maxW}`});
+      if(arr[l]<arr[r])l++; else r--;
+    }
+    s.push({l:bestL,r:bestR,arr,water:maxW,maxW,done:true,label:`Max water = <strong>${maxW}</strong> between indices ${bestL} and ${bestR}`});
+    return s;
+  }
+
+  function buildDedupSteps() {
+    const arr=[...ARR_DEDUP],s=[]; let slow=0;
+    s.push({slow,fast:1,arr:[...arr],k:1,label:`Slow=0, Fast=1. Keep unique elements in-place.`});
+    for(let fast=1;fast<arr.length;fast++){
+      if(arr[fast]!==arr[slow]){
+        slow++;arr[slow]=arr[fast];
+        s.push({slow,fast,arr:[...arr],k:slow+1,label:`arr[${fast}](${arr[fast]}) ≠ arr[${slow-1}](${arr[slow-1]}). Write → arr[${slow}]=${arr[fast]}. k=${slow+1}`});
+      } else {
+        s.push({slow,fast,arr:[...arr],k:slow+1,label:`arr[${fast}](${arr[fast]}) = arr[${slow}](${arr[slow]}). Skip duplicate. Move fast.`});
+      }
+    }
+    s.push({slow,fast:arr.length-1,arr:[...arr],k:slow+1,done:true,label:`Done! ${slow+1} unique values: [${arr.slice(0,slow+1).join(', ')}]`});
+    return s;
+  }
+
+  function renderCells(s) {
+    const row=document.getElementById('tp-row');
+    const prow=document.getElementById('ptr-row');
+    row.innerHTML=''; prow.innerHTML='';
+    const arr=s.arr;
+
+    arr.forEach((v,i)=>{
+      // pointer slots
+      const ps=document.createElement('div');
+      ps.className='ptr-slot';
+      let ptxt='';
+      if(activeTab==='dedup'){
+        if(i===s.slow){ps.className+=' L';ptxt='slow';}
+        else if(i===s.fast){ps.className+=' R';ptxt='fast';}
+      } else {
+        if(i===s.l){ps.className+=' L';ptxt='L';}
+        if(i===s.r){ps.className+=' R';ptxt='R';}
+      }
+      ps.textContent=ptxt;
+      prow.appendChild(ps);
+
+      const cell=document.createElement('div');
+      let cls='tp-cell';
+      if(s.done&&activeTab!=='dedup'&&i>=s.l&&i<=s.r) cls+=' found';
+      else if(activeTab==='dedup'){
+        if(i===s.slow) cls+=' left';
+        else if(i===s.fast) cls+=' right';
+        else if(i<s.slow) cls+=' found';
+      } else {
+        if(i===s.l) cls+=' left';
+        else if(i===s.r) cls+=' right';
+        else if(s.found&&i>s.l&&i<s.r) cls+=' found';
+      }
+      cell.className=cls;
+      cell.innerHTML=`${v}<span class="cidx">${i}</span>`;
+      row.appendChild(cell);
+      gsap.from(cell,{opacity:0.7,duration:0.15});
+    });
+
+    document.getElementById('stat-l').textContent=activeTab==='dedup'?s.slow:s.l;
+    document.getElementById('stat-r').textContent=activeTab==='dedup'?s.fast:s.r;
+    const extra=document.getElementById('stat-extra');
+    const chip=document.getElementById('stat-extra-chip');
+    if(activeTab==='twosum'){chip.innerHTML=`Sum: <strong id="stat-extra">${s.arr[s.l]+s.arr[s.r]}</strong>`;}
+    else if(activeTab==='water'){chip.innerHTML=`Water: <strong id="stat-extra">${s.water||0} / Max:${s.maxW||0}</strong>`;}
+    else{chip.innerHTML=`Unique k: <strong id="stat-extra">${s.k||1}</strong>`;}
+    document.getElementById('step-num').textContent=stepIdx;
+  }
+
+  function renderStep(s){document.getElementById('info-box').innerHTML=s.label;renderCells(s);}
+
+  function initStage(){
+    const arr=activeTab==='twosum'?ARR_SUM:activeTab==='water'?ARR_WATER:ARR_DEDUP;
+    const row=document.getElementById('tp-row');const prow=document.getElementById('ptr-row');
+    row.innerHTML='';prow.innerHTML='';
+    arr.forEach((v,i)=>{
+      const ps=document.createElement('div');ps.className='ptr-slot';prow.appendChild(ps);
+      const cell=document.createElement('div');cell.className='tp-cell';
+      cell.innerHTML=`${v}<span class="cidx">${i}</span>`;row.appendChild(cell);
+    });
+    document.getElementById('stat-l').textContent='—';
+    document.getElementById('stat-r').textContent='—';
+    document.getElementById('step-num').textContent='0';
+    const chip=document.getElementById('stat-extra-chip');
+    chip.innerHTML=activeTab==='twosum'?'Sum: <strong id="stat-extra">—</strong>':activeTab==='water'?'Water: <strong id="stat-extra">—</strong>':'Unique k: <strong id="stat-extra">—</strong>';
+  }
+
+  function reset(){
+    clearTimeout(playTimer);playing=false;looping=false;steps=[];stepIdx=0;
+    document.getElementById('btn-play').textContent='▶ Play';
+    document.getElementById('btn-loop').textContent='↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    initStage();
+    document.getElementById('info-box').innerHTML='Press <strong>Play</strong> to visualize the two-pointer technique.';
+  }
+
+  function init(){if(!steps.length){
+    steps=activeTab==='twosum'?buildTwoSumSteps():activeTab==='water'?buildWaterSteps():buildDedupSteps();
+    stepIdx=0;
+  }}
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');activeTab=btn.dataset.tab;reset();
+    });
+  });
+  document.getElementById('btn-reset').addEventListener('click',reset);
+  document.getElementById('btn-step').addEventListener('click',()=>{
+    clearTimeout(playTimer);playing=false;document.getElementById('btn-play').textContent='▶ Play';
+    init();if(stepIdx<steps.length)renderStep(steps[stepIdx++]);
+  });
+  document.getElementById('btn-play').addEventListener('click',()=>{
+    if(playing){clearTimeout(playTimer);playing=false;document.getElementById('btn-play').textContent='▶ Play';return;}
+    if(!steps.length||stepIdx>=steps.length){reset();init();}
+    playing=true;document.getElementById('btn-play').textContent='⏸ Pause';
+    function next(){
+      if(!playing){document.getElementById('btn-play').textContent='▶ Play';return;}
+      if(stepIdx>=steps.length){
+        if(looping){playTimer=setTimeout(()=>{reset();init();playing=true;document.getElementById('btn-play').textContent='⏸ Pause';next();},1400);}
+        else{playing=false;document.getElementById('btn-play').textContent='▶ Play';}
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer=setTimeout(next,800);
+    }
+    next();
+  });
+  document.getElementById('btn-loop').addEventListener('click',()=>{
+    looping=!looping;
+    document.getElementById('btn-loop').textContent=looping?'↻ Loop: On':'↻ Loop: Off';
+    document.getElementById('btn-loop').classList.toggle('primary',looping);
+  });
+  reset();
+</script>
+</body>
+</html>

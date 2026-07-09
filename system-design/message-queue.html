@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Message Queue — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #mq-svg { min-width:400px; }
+    }
+  </style>
+  <style>
+    #mq-svg { width:100%; overflow:visible; }
+    .tab-row { display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .tab-btn { padding:0.35rem 0.9rem; border-radius:999px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.8rem; cursor:pointer; transition:all 0.2s; }
+    .tab-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .msg-input { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.85rem; width:140px; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Message Queue / Pub-Sub</h1>
+  <p class="subtitle">Producer → Queue/Broker → Consumer(s) · Async decoupling</p>
+
+  <div class="stage" style="min-height:300px; overflow:visible; flex-direction:column; gap:0.5rem;">
+    <svg id="mq-svg" viewBox="0 0 760 260" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="tab-row">
+    <button class="tab-btn active" data-mode="queue">Message Queue</button>
+    <button class="tab-btn" data-mode="pubsub">Pub-Sub</button>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <input class="msg-input" type="text" id="msg-input" placeholder="Message..." value="order_placed"/>
+    <button class="btn primary" id="btn-publish">Publish</button>
+    <button class="btn" id="btn-consume">Consume</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Publish a message to the queue, then consume it.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('mq-svg');
+  let mode = 'queue';
+  let messageQueue = [];
+  let publishedCount = 0, consumedCount = 0;
+  let autoOn = false, autoTimer = null, animating = false;
+
+  const MSG_SAMPLES = ['order_placed','user_signup','payment_ok','item_shipped','review_posted','pw_reset'];
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function drawBase() {
+    svg.innerHTML = '';
+    // defs
+    const defs = el('defs', {});
+    const mk = el('marker', { id:'mkar', markerWidth:'8', markerHeight:'8', refX:'6', refY:'3', orient:'auto' });
+    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#2e3148' }));
+    defs.appendChild(mk);
+    svg.appendChild(defs);
+
+    if (mode === 'queue') {
+      // Producer
+      svg.appendChild(el('rect', { x:20, y:100, width:110, height:60, rx:'10', fill:'#1a1d27', stroke:'#6c63ff', 'stroke-width':'2' }));
+      svg.appendChild(el('text', { x:75, y:124, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#a09cf7', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Producer'));
+      svg.appendChild(el('text', { x:75, y:142, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'sends events'));
+
+      // Queue box
+      svg.appendChild(el('rect', { x:220, y:80, width:320, height:100, rx:'12', fill:'#1a1d27', stroke:'#ffd700', 'stroke-width':'2', id:'queue-box' }));
+      svg.appendChild(el('text', { x:380, y:96, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#ffd700', 'font-size':'11', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Message Queue (FIFO)'));
+      // queue slots
+      for (let i = 0; i < 5; i++) {
+        svg.appendChild(el('rect', { x:228 + i*58, y:106, width:50, height:52, rx:'6', fill:'#242736',
+          stroke:'#2e3148', 'stroke-width':'1', id:`mq-slot-${i}` }));
+        svg.appendChild(el('text', { x:253 + i*58, y:132, 'text-anchor':'middle', 'dominant-baseline':'middle',
+          fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`mq-slot-lbl-${i}` }, ''));
+      }
+
+      // Consumer
+      svg.appendChild(el('rect', { x:620, y:100, width:120, height:60, rx:'10', fill:'#1a1d27', stroke:'#43e97b', 'stroke-width':'2' }));
+      svg.appendChild(el('text', { x:680, y:124, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#43e97b', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Consumer'));
+      svg.appendChild(el('text', { x:680, y:142, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'processes events'));
+
+      // arrows
+      svg.appendChild(el('line', { x1:130, y1:130, x2:218, y2:130, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+      svg.appendChild(el('line', { x1:542, y1:130, x2:618, y2:130, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+
+      // counters
+      svg.appendChild(el('text', { x:75, y:200, 'text-anchor':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'pub-count' }, `Published: ${publishedCount}`));
+      svg.appendChild(el('text', { x:680, y:200, 'text-anchor':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'con-count' }, `Consumed: ${consumedCount}`));
+
+    } else {
+      // PUB-SUB
+      // Publisher
+      svg.appendChild(el('rect', { x:20, y:110, width:110, height:50, rx:'10', fill:'#1a1d27', stroke:'#6c63ff', 'stroke-width':'2' }));
+      svg.appendChild(el('text', { x:75, y:130, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#a09cf7', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Publisher'));
+      svg.appendChild(el('text', { x:75, y:148, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'topic: orders'));
+
+      // Broker
+      svg.appendChild(el('rect', { x:290, y:100, width:120, height:70, rx:'10', fill:'#1a1d27', stroke:'#ffd700', 'stroke-width':'2' }));
+      svg.appendChild(el('text', { x:350, y:126, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#ffd700', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Broker'));
+      svg.appendChild(el('text', { x:350, y:144, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Kafka / RabbitMQ'));
+      svg.appendChild(el('text', { x:350, y:158, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'8', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'broker-count-lbl' }, `msgs: ${messageQueue.length}`));
+
+      // Subscribers
+      const subs = ['Email Svc', 'Analytics', 'Inventory'];
+      const colors = ['#43e97b', '#ff6584', '#6c63ff'];
+      subs.forEach((s, i) => {
+        const y = 50 + i * 80;
+        svg.appendChild(el('line', { x1:410, y1:135, x2:548, y2: y+25, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+        svg.appendChild(el('rect', { x:550, y, width:110, height:50, rx:'10', fill:'#1a1d27', stroke:colors[i], 'stroke-width':'1.5', id:`sub-rect-${i}` }));
+        svg.appendChild(el('text', { x:605, y: y+20, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:colors[i], 'font-size':'11', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, s));
+        svg.appendChild(el('text', { x:605, y: y+36, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`sub-count-${i}` }, '0 msgs'));
+      });
+
+      svg.appendChild(el('line', { x1:130, y1:135, x2:288, y2:135, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+    }
+
+    // packet
+    svg.appendChild(el('circle', { id:'mq-pkt', cx:'-50', cy:'-50', r:'8', fill:'#ffd700', opacity:'0' }));
+    svg.appendChild(el('text', { id:'mq-pkt-lbl', x:'-50', y:'-35', 'text-anchor':'middle', fill:'#ffd700', 'font-size':'8', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif", opacity:'0' }, ''));
+
+    updateQueueSlots();
+  }
+
+  function updateQueueSlots() {
+    if (mode !== 'queue') return;
+    for (let i = 0; i < 5; i++) {
+      const slot = document.getElementById(`mq-slot-${i}`);
+      const lbl  = document.getElementById(`mq-slot-lbl-${i}`);
+      if (!slot || !lbl) continue;
+      if (messageQueue[i]) {
+        slot.setAttribute('fill', 'rgba(108,99,255,0.12)');
+        slot.setAttribute('stroke', '#6c63ff');
+        lbl.textContent = messageQueue[i].substring(0, 7);
+        lbl.setAttribute('fill', '#a09cf7');
+      } else {
+        slot.setAttribute('fill', '#242736');
+        slot.setAttribute('stroke', '#2e3148');
+        lbl.textContent = '';
+      }
+    }
+    const pc = document.getElementById('pub-count');
+    const cc = document.getElementById('con-count');
+    if (pc) pc.textContent = `Published: ${publishedCount}`;
+    if (cc) cc.textContent = `Consumed: ${consumedCount}`;
+    const bc = document.getElementById('broker-count-lbl');
+    if (bc) bc.textContent = `msgs: ${messageQueue.length}`;
+  }
+
+  let subCounts = [0,0,0];
+
+  function publish() {
+    if (animating) return;
+    animating = true;
+    const msg = document.getElementById('msg-input').value || 'event';
+    const pkt = document.getElementById('mq-pkt');
+    const lbl = document.getElementById('mq-pkt-lbl');
+    lbl.textContent = msg.substring(0,10);
+
+    if (mode === 'queue') {
+      if (messageQueue.length >= 5) {
+        document.getElementById('info-box').innerHTML = 'Queue is full (max 5). Consume messages first.';
+        animating = false; return;
+      }
+      gsap.set(pkt, { attr:{ cx:130, cy:130 }, opacity:1, fill:'#ffd700' });
+      gsap.set(lbl, { attr:{ x:130, y:116 }, opacity:1 });
+      const destX = 228 + messageQueue.length * 58 + 25;
+      gsap.to([pkt, lbl], {
+        attr:{ cx:destX, cy:130, x:destX, y:116 }, duration:0.5, ease:'power2.inOut',
+        onComplete: () => {
+          messageQueue.push(msg); publishedCount++;
+          updateQueueSlots();
+          gsap.to([pkt, lbl], { opacity:0, duration:0.3 });
+          document.getElementById('info-box').innerHTML = `Published <strong>"${msg}"</strong> to queue. Queue size: <strong>${messageQueue.length}</strong>`;
+          animating = false;
+        }
+      });
+    } else {
+      // pub-sub: broadcast to all subscribers
+      gsap.set(pkt, { attr:{ cx:130, cy:135 }, opacity:1, fill:'#ffd700' });
+      gsap.set(lbl, { attr:{ x:130, y:121 }, opacity:1 });
+      gsap.to([pkt, lbl], {
+        attr:{ cx:350, cy:135, x:350, y:121 }, duration:0.4, ease:'power2.inOut',
+        onComplete: () => {
+          publishedCount++;
+          messageQueue.push(msg);
+          updateQueueSlots();
+          const subY = [75, 155, 235];
+          const colors = ['#43e97b', '#ff6584', '#6c63ff'];
+          let done = 0;
+          subY.forEach((y, i) => {
+            const clone = pkt.cloneNode();
+            clone.setAttribute('cx', 410); clone.setAttribute('cy', 135);
+            clone.setAttribute('fill', colors[i]); clone.setAttribute('opacity', '1');
+            clone.setAttribute('r', '6');
+            svg.appendChild(clone);
+            gsap.to(clone, {
+              attr:{ cx:550, cy: y+25 }, duration:0.5, delay: i*0.1, ease:'power2.inOut',
+              onComplete: () => {
+                subCounts[i]++;
+                const sc = document.getElementById(`sub-count-${i}`);
+                if (sc) sc.textContent = `${subCounts[i]} msgs`;
+                gsap.fromTo(`#sub-rect-${i}`, { attr:{ stroke:'#fff' } },
+                  { attr:{ stroke:colors[i] }, duration:0.4 });
+                clone.remove();
+                done++;
+                if (done === 3) {
+                  gsap.to([pkt, lbl], { opacity:0, duration:0.2 });
+                  document.getElementById('info-box').innerHTML = `Published <strong>"${msg}"</strong> broadcast to <strong>3 subscribers</strong>.`;
+                  animating = false;
+                }
+              }
+            });
+          });
+        }
+      });
+    }
+  }
+
+  function consume() {
+    if (mode !== 'queue') { document.getElementById('info-box').innerHTML = 'In Pub-Sub mode, subscribers consume automatically.'; return; }
+    if (animating) return;
+    if (!messageQueue.length) { document.getElementById('info-box').innerHTML = 'Queue is empty — nothing to consume.'; return; }
+    animating = true;
+    const msg = messageQueue[0];
+    const pkt = document.getElementById('mq-pkt');
+    const lbl = document.getElementById('mq-pkt-lbl');
+    gsap.set(pkt, { attr:{ cx:228+25, cy:130 }, opacity:1, fill:'#43e97b' });
+    gsap.set(lbl, { attr:{ x:228+25, y:116 }, opacity:1 }); lbl.textContent = msg.substring(0,10);
+    gsap.to([pkt, lbl], {
+      attr:{ cx:620, cy:130, x:620, y:116 }, duration:0.5, ease:'power2.inOut',
+      onComplete: () => {
+        messageQueue.shift(); consumedCount++;
+        updateQueueSlots();
+        gsap.to([pkt, lbl], { opacity:0, duration:0.3 });
+        document.getElementById('info-box').innerHTML = `Consumed <strong>"${msg}"</strong> from queue. Remaining: <strong>${messageQueue.length}</strong>`;
+        animating = false;
+      }
+    });
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.dataset.mode;
+      reset();
+    });
+  });
+
+  document.getElementById('btn-publish').addEventListener('click', publish);
+  document.getElementById('btn-consume').addEventListener('click', consume);
+
+  document.getElementById('btn-auto').addEventListener('click', () => {
+    autoOn = !autoOn;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = autoOn ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', autoOn);
+    if (autoOn) {
+      autoTimer = setInterval(() => {
+        const msg = MSG_SAMPLES[Math.floor(Math.random()*MSG_SAMPLES.length)];
+        document.getElementById('msg-input').value = msg;
+        if (mode === 'queue' && messageQueue.length >= 4) consume();
+        else publish();
+      }, 1300);
+    } else { clearInterval(autoTimer); }
+  });
+
+  function reset() {
+    clearInterval(autoTimer); autoOn = false; animating = false;
+    document.getElementById('btn-auto').textContent = '↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    messageQueue = []; publishedCount = 0; consumedCount = 0; subCounts = [0,0,0];
+    drawBase();
+    document.getElementById('info-box').innerHTML = 'Publish a message to the queue, then consume it.';
+  }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  drawBase();
+</script>
+</body>
+</html>

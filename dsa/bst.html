@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binary Search Tree — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #bst-svg { min-width:340px; }
+      .traversal-btns { flex-wrap:wrap; gap:0.4rem; }
+    }
+  </style>
+  <style>
+    #bst-svg { width:100%; overflow:visible; }
+    .node-input { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; width:80px; text-align:center; }
+    .op-row { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.5rem; align-items:center; }
+    .op-row label { font-size:0.85rem; color:var(--text-muted); }
+    .traversal-btns { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Binary Search Tree</h1>
+  <p class="subtitle">Insert · Search · In-order / Pre-order / Post-order traversal</p>
+
+  <div class="stage" style="min-height:340px; overflow:visible; align-items:flex-start;">
+    <svg id="bst-svg" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="op-row">
+    <label>Value:</label>
+    <input class="node-input" type="number" id="bst-val" value="50" min="1" max="99" />
+    <button class="btn primary" id="btn-insert">Insert</button>
+    <button class="btn" id="btn-search">Search</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="traversal-btns">
+    <button class="btn" id="btn-inorder">In-order</button>
+    <button class="btn" id="btn-preorder">Pre-order</button>
+    <button class="btn" id="btn-postorder">Post-order</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+  </div>
+  <div class="info-box" id="info-box">Insert values to build the tree. Then search or traverse.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('bst-svg');
+  let root = null;
+  let busy = false;
+  let looping = false;
+  let loopTimer = null;
+  let lastOrder = 'in';
+
+  class BSTNode {
+    constructor(val) { this.val = val; this.left = null; this.right = null; this.x = 0; this.y = 0; }
+  }
+
+  function insert(node, val) {
+    if (!node) return new BSTNode(val);
+    if (val < node.val) node.left  = insert(node.left,  val);
+    else if (val > node.val) node.right = insert(node.right, val);
+    return node;
+  }
+
+  // Layout: assign x/y positions
+  let xCounter = 0;
+  function layout(node, depth) {
+    if (!node) return;
+    layout(node.left, depth + 1);
+    node.x = xCounter++ * 68 + 40;
+    node.y = depth * 72 + 30;
+    layout(node.right, depth + 1);
+  }
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
+    return e;
+  }
+
+  function renderTree(highlightVals = [], highlightColor = '#ffd700') {
+    svg.innerHTML = '';
+    if (!root) {
+      const t = el('text', { x:'50%', y:'60', 'text-anchor':'middle', fill:'#8b8fa8',
+        'font-size':'14', 'font-family':"'Segoe UI',system-ui,sans-serif" });
+      t.textContent = 'Tree is empty — insert a value';
+      svg.appendChild(t);
+      return;
+    }
+    xCounter = 0;
+    layout(root, 0);
+
+    // compute needed viewBox
+    let maxX = 0, maxY = 0;
+    function getMax(n) { if(!n) return; maxX = Math.max(maxX, n.x); maxY = Math.max(maxY, n.y); getMax(n.left); getMax(n.right); }
+    getMax(root);
+    svg.setAttribute('viewBox', `0 0 ${Math.max(maxX + 60, 300)} ${Math.max(maxY + 60, 200)}`);
+
+    // edges first
+    function drawEdges(node) {
+      if (!node) return;
+      if (node.left)  { svg.appendChild(el('line', { x1:node.x, y1:node.y, x2:node.left.x, y2:node.left.y, stroke:'#2e3148', 'stroke-width':'2' })); }
+      if (node.right) { svg.appendChild(el('line', { x1:node.x, y1:node.y, x2:node.right.x, y2:node.right.y, stroke:'#2e3148', 'stroke-width':'2' })); }
+      drawEdges(node.left); drawEdges(node.right);
+    }
+    drawEdges(root);
+
+    // nodes
+    function drawNodes(node) {
+      if (!node) return;
+      const isHL = highlightVals.includes(node.val);
+      const color = isHL ? highlightColor : '#6c63ff';
+      const g = el('g', { opacity:'0', id:`bst-node-${node.val}` });
+      g.appendChild(el('circle', { cx:node.x, cy:node.y, r:'22', fill:'#1a1d27', stroke:color, 'stroke-width': isHL ? '2.5' : '1.5' }));
+      const t = el('text', { x:node.x, y:node.y+1, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:color, 'font-size':'13', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" });
+      t.textContent = node.val;
+      g.appendChild(t);
+      svg.appendChild(g);
+      gsap.to(g, { opacity:1, duration:0.3 });
+      drawNodes(node.left); drawNodes(node.right);
+    }
+    drawNodes(root);
+  }
+
+  function getVal() { return parseInt(document.getElementById('bst-val').value) || 50; }
+
+  document.getElementById('btn-insert').addEventListener('click', () => {
+    const v = getVal();
+    root = insert(root, v);
+    renderTree([v], '#ffd700');
+    document.getElementById('info-box').innerHTML = `Inserted <strong>${v}</strong> into the BST. Rule: left &lt; parent &lt; right.`;
+  });
+
+  document.getElementById('btn-search').addEventListener('click', () => {
+    if (busy) return;
+    busy = true;
+    const target = getVal();
+    const path = [];
+    let node = root;
+    while (node) {
+      path.push(node.val);
+      if (node.val === target) break;
+      node = target < node.val ? node.left : node.right;
+    }
+    let i = 0;
+    function step() {
+      if (i >= path.length) {
+        const found = path[path.length-1] === target;
+        renderTree(found ? [target] : [], found ? '#43e97b' : '#ff6584');
+        document.getElementById('info-box').innerHTML = found
+          ? `<strong>Found ${target}</strong> after visiting ${path.length} node(s): ${path.join(' → ')}`
+          : `<strong>${target} not found.</strong> Searched: ${path.join(' → ')}`;
+        busy = false;
+        return;
+      }
+      renderTree([path[i]], '#ffd700');
+      const dir = i < path.length - 1 ? (path[i+1] < path[i] ? '← go left' : '→ go right') : '';
+      document.getElementById('info-box').innerHTML = `Visiting <strong>${path[i]}</strong>. ${dir}`;
+      i++;
+      setTimeout(step, 700);
+    }
+    step();
+  });
+
+  function traverseAnimate(order) {
+    if (busy) return;
+    busy = true;
+    lastOrder = order;
+    const result = [];
+    function inorder(n)   { if(!n) return; inorder(n.left); result.push(n.val); inorder(n.right); }
+    function preorder(n)  { if(!n) return; result.push(n.val); preorder(n.left); preorder(n.right); }
+    function postorder(n) { if(!n) return; postorder(n.left); postorder(n.right); result.push(n.val); }
+    if (order==='in') inorder(root);
+    else if (order==='pre') preorder(root);
+    else postorder(root);
+
+    let i = 0;
+    const names = { in:'In-order (Left→Root→Right)', pre:'Pre-order (Root→Left→Right)', post:'Post-order (Left→Right→Root)' };
+    function step() {
+      if (i >= result.length) {
+        document.getElementById('info-box').innerHTML = `${names[order]}: <strong>[${result.join(', ')}]</strong>`;
+        renderTree(result, '#43e97b');
+        busy = false;
+        if (looping) { loopTimer = setTimeout(() => traverseAnimate(lastOrder), 1400); }
+        return;
+      }
+      renderTree([result[i]], '#ffd700');
+      document.getElementById('info-box').innerHTML = `${names[order]} — Visiting <strong>${result[i]}</strong> (${i+1}/${result.length})`;
+      i++;
+      setTimeout(step, 600);
+    }
+    step();
+  }
+
+  document.getElementById('btn-inorder').addEventListener('click',   () => traverseAnimate('in'));
+  document.getElementById('btn-preorder').addEventListener('click',  () => traverseAnimate('pre'));
+  document.getElementById('btn-postorder').addEventListener('click', () => traverseAnimate('post'));
+
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+    if (!looping) { clearTimeout(loopTimer); }
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    root = null; busy = false;
+    clearTimeout(loopTimer);
+    renderTree();
+    document.getElementById('info-box').innerHTML = 'Insert values to build the tree. Then search or traverse.';
+  });
+
+  // seed initial tree
+  [50, 30, 70, 20, 40, 60, 80].forEach(v => { root = insert(root, v); });
+  renderTree();
+</script>
+</body>
+</html>

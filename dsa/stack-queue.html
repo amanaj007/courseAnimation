@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stack & Queue — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .ds-container { display:flex; gap:3rem; justify-content:center; flex-wrap:wrap; width:100%; }
+    .ds-box { display:flex; flex-direction:column; align-items:center; gap:0.5rem; min-width:160px; }
+    .ds-title { font-size:1rem; font-weight:700; color:var(--text); margin-bottom:0.5rem; }
+    .ds-structure { display:flex; flex-direction:column-reverse; gap:4px; align-items:center;
+      min-height:220px; justify-content:flex-start; position:relative; }
+    .ds-item {
+      width:130px; height:42px; border-radius:8px; display:flex; align-items:center;
+      justify-content:center; font-weight:700; font-size:1rem; border:2px solid var(--border);
+      background:var(--surface2); color:var(--text); position:relative;
+    }
+    /* queue is horizontal */
+    .queue-structure { flex-direction:row; gap:4px; min-height:60px; min-width:300px;
+      justify-content:flex-start; align-items:center; overflow-x:auto; padding:0.5rem; }
+    .queue-structure .ds-item { min-width:50px; width:auto; padding:0 12px; }
+    .pointer-label { font-size:0.65rem; color:var(--accent); font-weight:700; }
+    .divider { width:2px; height:220px; background:var(--border); border-radius:2px; }
+    .node-input { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; width:80px; text-align:center; }
+    .half-controls { display:flex; flex-direction:column; gap:0.6rem; align-items:center; width:100%; margin-top:0.75rem; }
+    .inner-row { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; justify-content:center; }
+    .top-label { position:absolute; top:-22px; left:50%; transform:translateX(-50%);
+      font-size:0.65rem; color:var(--highlight); font-weight:700; white-space:nowrap; }
+    @media (max-width: 600px) {
+      .ds-container { flex-direction:column; gap:1.5rem; }
+      .divider { width:100%; height:2px; }
+      .ds-box { width:100%; min-width:0; }
+      .ds-box[style*="min-width:320px"] { min-width:0 !important; }
+      .ds-structure { min-height:120px; }
+      .ds-item { width:100px; height:36px; font-size:0.88rem; }
+      .queue-structure { min-width:0; width:100%; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Stack & Queue</h1>
+  <p class="subtitle">LIFO (Stack) vs FIFO (Queue)</p>
+
+  <div class="stage" style="flex-direction:column; gap:1.5rem; min-height:320px;">
+    <div class="ds-container">
+      <!-- STACK -->
+      <div class="ds-box">
+        <div class="ds-title" style="color:var(--accent)">📚 Stack (LIFO)</div>
+        <div class="ds-structure" id="stack-view"></div>
+        <div class="half-controls">
+          <div class="inner-row">
+            <input class="node-input" type="number" id="stack-val" value="42" min="1" max="99" />
+            <button class="btn primary" id="btn-push">Push</button>
+            <button class="btn" id="btn-pop">Pop</button>
+          </div>
+          <div class="inner-row">
+            <button class="btn" id="btn-peek">Peek</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- QUEUE -->
+      <div class="ds-box" style="min-width:320px;">
+        <div class="ds-title" style="color:var(--accent2)">🚌 Queue (FIFO)</div>
+        <div class="ds-structure queue-structure" id="queue-view"></div>
+        <div class="half-controls">
+          <div class="inner-row">
+            <input class="node-input" type="number" id="queue-val" value="15" min="1" max="99" />
+            <button class="btn primary" id="btn-enqueue">Enqueue</button>
+            <button class="btn" id="btn-dequeue">Dequeue</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:0.75rem;">
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+  </div>
+  <div class="info-box" id="info-box">Push values onto the Stack or Enqueue into the Queue.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  let stack = [5, 12, 27];
+  let queue = [8, 16, 33];
+
+  function renderStack(highlightTop = false, highlightColor = '#ffd700') {
+    const view = document.getElementById('stack-view');
+    view.innerHTML = '';
+    if (stack.length === 0) {
+      view.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Empty</div>';
+      return;
+    }
+    stack.forEach((val, i) => {
+      const isTop = i === stack.length - 1;
+      const item = document.createElement('div');
+      item.className = 'ds-item';
+      item.textContent = val;
+      item.style.borderColor = isTop ? (highlightTop ? highlightColor : '#6c63ff') : 'var(--border)';
+      item.style.color = isTop ? (highlightTop ? highlightColor : '#a09cf7') : 'var(--text)';
+      item.style.background = isTop ? 'rgba(108,99,255,0.1)' : 'var(--surface2)';
+      if (isTop) {
+        const lbl = document.createElement('div');
+        lbl.className = 'top-label';
+        lbl.textContent = '← TOP';
+        item.style.position = 'relative';
+        item.appendChild(lbl);
+      }
+      view.appendChild(item);
+      gsap.from(item, { opacity:0, y:10, duration:0.25 });
+    });
+  }
+
+  function renderQueue(highlightFront = false, highlightColor = '#ff6584') {
+    const view = document.getElementById('queue-view');
+    view.innerHTML = '';
+    if (queue.length === 0) {
+      view.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Empty</div>';
+      return;
+    }
+    // labels
+    const frontLbl = document.createElement('div');
+    frontLbl.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
+    frontLbl.innerHTML = `<span style="font-size:0.6rem;color:var(--accent2);font-weight:700;">FRONT</span><span style="color:var(--text-muted);">▶</span>`;
+    view.appendChild(frontLbl);
+
+    queue.forEach((val, i) => {
+      const isFront = i === 0;
+      const isRear  = i === queue.length - 1;
+      const item = document.createElement('div');
+      item.className = 'ds-item';
+      item.textContent = val;
+      item.style.borderColor = isFront ? (highlightFront ? highlightColor : '#ff6584')
+                              : isRear ? '#43e97b' : 'var(--border)';
+      item.style.color = isFront ? '#ff6584' : isRear ? '#43e97b' : 'var(--text)';
+      view.appendChild(item);
+      gsap.from(item, { opacity:0, x:10, duration:0.25 });
+    });
+
+    const rearLbl = document.createElement('div');
+    rearLbl.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
+    rearLbl.innerHTML = `<span style="color:var(--text-muted);">◀</span><span style="font-size:0.6rem;color:var(--accent3);font-weight:700;">REAR</span>`;
+    view.appendChild(rearLbl);
+  }
+
+  document.getElementById('btn-push').addEventListener('click', () => {
+    if (stack.length >= 8) { document.getElementById('info-box').innerHTML = 'Stack overflow! Max 8 items.'; return; }
+    const v = parseInt(document.getElementById('stack-val').value) || 0;
+    stack.push(v);
+    renderStack(true, '#ffd700');
+    document.getElementById('info-box').innerHTML = `<strong>Push(${v})</strong> → Added ${v} to the top of the stack. Size: ${stack.length}`;
+  });
+
+  document.getElementById('btn-pop').addEventListener('click', () => {
+    if (!stack.length) { document.getElementById('info-box').innerHTML = 'Stack underflow! Stack is empty.'; return; }
+    renderStack(true, '#ff6584');
+    setTimeout(() => {
+      const v = stack.pop();
+      renderStack();
+      document.getElementById('info-box').innerHTML = `<strong>Pop()</strong> → Removed <strong>${v}</strong> from top. Size: ${stack.length}`;
+    }, 400);
+  });
+
+  document.getElementById('btn-peek').addEventListener('click', () => {
+    if (!stack.length) { document.getElementById('info-box').innerHTML = 'Stack is empty!'; return; }
+    renderStack(true, '#ffd700');
+    document.getElementById('info-box').innerHTML = `<strong>Peek()</strong> → Top element is <strong>${stack[stack.length-1]}</strong> (not removed).`;
+  });
+
+  document.getElementById('btn-enqueue').addEventListener('click', () => {
+    if (queue.length >= 8) { document.getElementById('info-box').innerHTML = 'Queue full! Max 8 items.'; return; }
+    const v = parseInt(document.getElementById('queue-val').value) || 0;
+    queue.push(v);
+    renderQueue();
+    document.getElementById('info-box').innerHTML = `<strong>Enqueue(${v})</strong> → Added ${v} to REAR. Size: ${queue.length}`;
+  });
+
+  document.getElementById('btn-dequeue').addEventListener('click', () => {
+    if (!queue.length) { document.getElementById('info-box').innerHTML = 'Queue is empty!'; return; }
+    renderQueue(true, '#ff6584');
+    setTimeout(() => {
+      const v = queue.shift();
+      renderQueue();
+      document.getElementById('info-box').innerHTML = `<strong>Dequeue()</strong> → Removed <strong>${v}</strong> from FRONT. Size: ${queue.length}`;
+    }, 400);
+  });
+
+  renderStack();
+  renderQueue();
+
+  let looping = false;
+  let loopTimer = null;
+  let loopStep = 0;
+  const DEMO_VALS = [7, 14, 21, 28, 35, 42];
+
+  function demoStep() {
+    if (!looping) return;
+    const phase = loopStep % 8;
+    if (phase < 4) {
+      // push & enqueue
+      const v = DEMO_VALS[phase];
+      if (stack.length < 7) { stack.push(v); renderStack(true, '#ffd700'); }
+      if (queue.length < 7) { queue.push(v); renderQueue(); }
+      document.getElementById('info-box').innerHTML = `Loop demo: Push & Enqueue <strong>${v}</strong>`;
+    } else {
+      // pop & dequeue
+      if (stack.length) { const v = stack.pop(); renderStack(true, '#ff6584'); document.getElementById('info-box').innerHTML = `Loop demo: Pop → <strong>${v}</strong> | Dequeue → <strong>${queue[0] ?? '—'}</strong>`; }
+      if (queue.length) { setTimeout(() => { queue.shift(); renderQueue(); }, 300); }
+    }
+    loopStep++;
+    loopTimer = setTimeout(demoStep, 900);
+  }
+
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+    if (looping) { loopStep = 0; demoStep(); }
+    else { clearTimeout(loopTimer); }
+  });
+</script>
+</body>
+</html>

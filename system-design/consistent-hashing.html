@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consistent Hashing — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #ch-svg { width:100%; max-width:520px; display:block; margin:0 auto; overflow:visible; }
+    .stats-row { display:flex; gap:0.75rem; flex-wrap:wrap; justify-content:center; margin-top:1rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.9rem; font-size:0.82rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    .ctrl-row { display:flex; gap:0.5rem; align-items:center; justify-content:center;
+      flex-wrap:wrap; margin-top:0.85rem; }
+    .ctrl-row input { width:130px; padding:0.45rem 0.75rem; border-radius:8px;
+      border:1.5px solid var(--border); background:var(--surface2);
+      color:var(--text); font-size:0.9rem; }
+    .preset-row { display:flex; gap:0.4rem; flex-wrap:wrap; justify-content:center; margin-top:0.5rem; }
+    .preset-btn { padding:0.25rem 0.65rem; border-radius:999px; border:1px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.75rem; cursor:pointer; transition:all .15s; }
+    .preset-btn:hover { border-color:var(--accent); color:var(--accent); }
+    @media (max-width:480px){
+      #ch-svg { min-width:300px; }
+      .ctrl-row input { width:100px; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Consistent Hashing</h1>
+  <p class="subtitle">Hash ring · Colored ownership arcs · Minimal key remapping on server changes</p>
+
+  <div class="stage" style="min-height:360px; flex-direction:column; padding:1.5rem 1rem;">
+    <svg id="ch-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">Servers: <strong id="stat-servers">3</strong></div>
+    <div class="stat-chip">Lookups: <strong id="stat-keys">0</strong></div>
+    <div class="stat-chip">Last: <strong id="stat-lookup">—</strong></div>
+  </div>
+
+  <div class="ctrl-row">
+    <input type="text" id="key-input" value="user_42" placeholder="key name" />
+    <button class="btn primary" id="btn-lookup">🔍 Lookup</button>
+    <button class="btn" id="btn-add">+ Server</button>
+    <button class="btn" id="btn-remove">− Server</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+
+  <div class="preset-row">
+    <span style="font-size:0.75rem;color:var(--text-muted);align-self:center;">Try:</span>
+    <button class="preset-btn" onclick="setKey('user_42')">user_42</button>
+    <button class="preset-btn" onclick="setKey('order_7')">order_7</button>
+    <button class="preset-btn" onclick="setKey('session_X')">session_X</button>
+    <button class="preset-btn" onclick="setKey('product_99')">product_99</button>
+    <button class="preset-btn" onclick="setKey('cache_key')">cache_key</button>
+  </div>
+
+  <div class="info-box" id="info-box">
+    Press <strong>Lookup</strong> to route a key. Each colored arc shows the hash range owned by that server.
+    <strong>+/− Server</strong> shows how little remapping happens.
+  </div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+const NS   = 'http://www.w3.org/2000/svg';
+const svg  = document.getElementById('ch-svg');
+const CX=240, CY=240, R=148;
+const COLORS = ['#6c63ff','#ff6584','#43e97b','#ffd700','#ff9800'];
+const FONT   = "'Segoe UI',system-ui,sans-serif";
+
+/* Fixed, well-spread angles for each server letter */
+const SERVER_ANGLES = { A:30, B:138, C:246, D:84, E:192 };
+const ALL_SERVERS   = ['A','B','C','D','E'];
+let servers  = ['A','B','C'];
+let keyCount = 0;
+let activeKey = null, activeServer = null;
+
+/* Key hash — spreads across 0-359 well */
+function hashKey(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++) h = (Math.imul(31,h) + str.charCodeAt(i)) | 0;
+  return ((h >>> 0) % 360);
+}
+
+function serverAngle(s){ return SERVER_ANGLES[s]; }
+
+function rad(deg){ return (deg - 90) * Math.PI / 180; }
+function pt(deg, r){ return { x: CX + r*Math.cos(rad(deg)), y: CY + r*Math.sin(rad(deg)) }; }
+
+function el(tag, attrs, text){
+  const e = document.createElementNS(NS, tag);
+  for(const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if(text != null) e.textContent = text;
+  return e;
+}
+
+/* Clockwise arc band from startDeg → endDeg at radius r */
+function arcPath(startDeg, endDeg, r, w=18){
+  let span = ((endDeg - startDeg) + 360) % 360;
+  if(span === 0) span = 360;
+  const oR = r + w/2, iR = r - w/2;
+  const lg = span > 180 ? 1 : 0;
+  const s1=pt(startDeg,oR), e1=pt(endDeg,oR);
+  const s2=pt(endDeg,iR),   e2=pt(startDeg,iR);
+  return `M${s1.x},${s1.y} A${oR},${oR} 0 ${lg},1 ${e1.x},${e1.y} `+
+         `L${s2.x},${s2.y} A${iR},${iR} 0 ${lg},0 ${e2.x},${e2.y} Z`;
+}
+
+/* Sorted server list by angle */
+function getSorted(){
+  return servers.map(s=>({ name:s, angle:serverAngle(s), col:COLORS[ALL_SERVERS.indexOf(s)] }))
+                .sort((a,b)=>a.angle-b.angle);
+}
+
+/* Find server for a key angle (clockwise walk) */
+function getServer(kAngle){
+  const sorted = getSorted();
+  return (sorted.find(s=>s.angle >= kAngle) || sorted[0]).name;
+}
+
+/* ── DRAW ── */
+function draw(){
+  svg.innerHTML = '';
+  const sorted = getSorted();
+
+  /* ownership arc bands */
+  sorted.forEach((srv,i)=>{
+    const prev     = sorted[(i-1+sorted.length)%sorted.length];
+    const isHL     = srv.name === activeServer;
+    svg.appendChild(el('path',{
+      d: arcPath(prev.angle, srv.angle, R, isHL ? 28 : 18),
+      fill: srv.col, opacity: isHL ? '0.5' : '0.15'
+    }));
+  });
+
+  /* ring */
+  svg.appendChild(el('circle',{
+    cx:CX,cy:CY,r:R,fill:'none',
+    stroke:'#2e3148','stroke-width':'1.5','stroke-dasharray':'5 4'
+  }));
+
+  /* ticks */
+  for(let d=0;d<360;d+=30){
+    const o=pt(d,R+6), i=pt(d,R-6);
+    svg.appendChild(el('line',{x1:o.x,y1:o.y,x2:i.x,y2:i.y,stroke:'#2e3148','stroke-width':'1'}));
+    const lp=pt(d,R+20);
+    svg.appendChild(el('text',{x:lp.x,y:lp.y,'text-anchor':'middle','dominant-baseline':'middle',
+      fill:'#2e3148','font-size':'9',style:`font-family:${FONT}`},d+'°'));
+  }
+
+  /* key arc trail (static, animation dot placed separately) */
+  if(activeKey !== null){
+    const kA = hashKey(activeKey);
+    const sA = serverAngle(activeServer);
+    svg.appendChild(el('path',{
+      id:'key-trail',
+      d: arcPath(kA, sA, R, 4),
+      fill:'#ffd700', opacity:'0.6'
+    }));
+  }
+
+  /* server nodes */
+  sorted.forEach(srv=>{
+    const p    = pt(srv.angle, R);
+    const isHL = srv.name === activeServer;
+    const nr   = isHL ? 20 : 16;
+    if(isHL) svg.appendChild(el('circle',{cx:p.x,cy:p.y,r:nr+8,
+      fill:'none',stroke:srv.col,'stroke-width':'2',opacity:'0.35'}));
+    svg.appendChild(el('circle',{
+      id:`srv-${srv.name}`,cx:p.x,cy:p.y,r:nr,
+      fill: isHL ? srv.col : '#1c1f2e',
+      stroke:srv.col,'stroke-width': isHL?3:2
+    }));
+    svg.appendChild(el('text',{x:p.x,y:p.y,'text-anchor':'middle','dominant-baseline':'middle',
+      fill: isHL?'#fff':srv.col,'font-size':'11','font-weight':'700',style:`font-family:${FONT}`
+    },'S'+srv.name));
+    const lp = pt(srv.angle, R+46);
+    svg.appendChild(el('text',{x:lp.x,y:lp.y,'text-anchor':'middle','dominant-baseline':'middle',
+      fill:srv.col,'font-size':'11','font-weight':'700',style:`font-family:${FONT}`
+    },'Server '+srv.name));
+    svg.appendChild(el('text',{x:lp.x,y:lp.y+14,'text-anchor':'middle','dominant-baseline':'middle',
+      fill:'#555a7a','font-size':'9',style:`font-family:${FONT}`
+    },srv.angle+'°'));
+  });
+
+  /* animated key dot — placed at key position */
+  if(activeKey !== null){
+    const kA = hashKey(activeKey);
+    const kp = pt(kA, R);
+    svg.appendChild(el('circle',{
+      id:'key-dot', cx:kp.x, cy:kp.y, r:'11',
+      fill:'#ffd700', stroke:'#1c1f2e','stroke-width':'2.5'
+    }));
+    svg.appendChild(el('text',{x:kp.x,y:kp.y,'text-anchor':'middle','dominant-baseline':'middle',
+      fill:'#1c1f2e','font-size':'8','font-weight':'700',style:`font-family:${FONT}`
+    },'K'));
+    svg.appendChild(el('text',{x:CX,y:CY-14,'text-anchor':'middle',
+      fill:'#ffd700','font-size':'12','font-weight':'700',style:`font-family:${FONT}`
+    },`"${activeKey}"`));
+    svg.appendChild(el('text',{x:CX,y:CY+6,'text-anchor':'middle',
+      fill:'#ffd700','font-size':'10',style:`font-family:${FONT}`
+    },hashKey(activeKey)+'°'));
+  }
+
+  /* center label */
+  svg.appendChild(el('text',{x:CX,y:CY+(activeKey?26:0),'text-anchor':'middle','dominant-baseline':'middle',
+    fill:'#2e3148','font-size':'11',style:`font-family:${FONT}`
+  },'Hash Ring'));
+}
+
+/* ── ANIMATED LOOKUP ── */
+function lookupKey(){
+  const key = document.getElementById('key-input').value.trim() || 'key';
+  const kAngle = hashKey(key);
+  const srv    = getServer(kAngle);
+  const sAngle = serverAngle(srv);
+  const col    = COLORS[ALL_SERVERS.indexOf(srv)];
+
+  activeKey    = key;
+  activeServer = srv;
+  keyCount++;
+
+  /* Draw base (no dot yet) */
+  draw();
+
+  /* --- animate key dot travelling clockwise along the ring to the server --- */
+  const keyDot  = svg.querySelector('#key-dot');
+  const keyTxt  = keyDot?.nextElementSibling;
+
+  /* Build travel path: clockwise arc from kAngle to sAngle */
+  let span = ((sAngle - kAngle) + 360) % 360;
+  const steps = Math.max(30, Math.round(span / 4));
+  let t = 0;
+
+  /* Pop in the key dot first */
+  gsap.from(keyDot, { scale:0, duration:0.35, ease:'back.out(2)', transformOrigin:'center center' });
+  gsap.from('#key-trail', { opacity:0, duration:0.3 });
+
+  /* After pop, travel along arc */
+  gsap.delayedCall(0.35, ()=>{
+    const tween = { progress: 0 };
+    gsap.to(tween, {
+      progress: 1, duration: Math.max(0.6, span/360 * 1.4),
+      ease: 'power1.inOut',
+      onUpdate(){
+        const angle = kAngle + span * tween.progress;
+        const p = pt(angle, R);
+        keyDot.setAttribute('cx', p.x);
+        keyDot.setAttribute('cy', p.y);
+        /* move K label with dot */
+        const kLbl = svg.querySelector('#key-dot + text');
+        if(kLbl){ kLbl.setAttribute('x', p.x); kLbl.setAttribute('y', p.y); }
+      },
+      onComplete(){
+        /* pulse server node */
+        const sNode = svg.querySelector(`#srv-${srv}`);
+        if(sNode){
+          gsap.to(sNode, {attr:{r:24}, duration:0.18, ease:'power2.out',
+            onComplete(){ gsap.to(sNode, {attr:{r:20}, duration:0.25, ease:'power2.in'}); }});
+        }
+      }
+    });
+  });
+
+  document.getElementById('stat-keys').textContent   = keyCount;
+  document.getElementById('stat-lookup').textContent = `"${key}"→${srv}`;
+  document.getElementById('info-box').innerHTML =
+    `Key <strong>"${key}"</strong> hashes to <strong>${kAngle}°</strong>. `+
+    `Walking clockwise → routed to <strong style="color:${col}">Server ${srv}</strong>.`;
+}
+
+function setKey(k){ document.getElementById('key-input').value=k; lookupKey(); }
+
+/* ── ADD / REMOVE ── */
+function addServer(){
+  if(servers.length>=5){ document.getElementById('info-box').textContent='Max 5 servers.'; return; }
+  const next = ALL_SERVERS.find(n=>!servers.includes(n));
+  servers.push(next);
+  document.getElementById('stat-servers').textContent = servers.length;
+  activeKey=null; activeServer=null;
+  draw();
+  /* animate new server appearing */
+  const sNode = svg.querySelector(`#srv-${next}`);
+  if(sNode) gsap.from(sNode,{scale:0,duration:0.5,ease:'back.out(2)',transformOrigin:'center center'});
+  const col = COLORS[ALL_SERVERS.indexOf(next)];
+  document.getElementById('info-box').innerHTML =
+    `<strong style="color:${col}">Server ${next}</strong> added at <strong>${serverAngle(next)}°</strong>. `+
+    `Only keys in its arc segment remap — everything else stays put.`;
+}
+
+function removeServer(){
+  if(servers.length<=1){ document.getElementById('info-box').textContent='Need at least 1 server.'; return; }
+  const removed = servers.pop();
+  document.getElementById('stat-servers').textContent = servers.length;
+  activeKey=null; activeServer=null;
+  draw();
+  document.getElementById('info-box').innerHTML =
+    `<strong>Server ${removed}</strong> removed. Its arc redistributes to the next server clockwise — minimal keys remapped.`;
+}
+
+/* ── CONTROLS ── */
+document.getElementById('btn-lookup').addEventListener('click', lookupKey);
+document.getElementById('btn-add').addEventListener('click', addServer);
+document.getElementById('btn-remove').addEventListener('click', removeServer);
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  servers=['A','B','C']; keyCount=0; activeKey=null; activeServer=null;
+  document.getElementById('stat-servers').textContent='3';
+  document.getElementById('stat-keys').textContent='0';
+  document.getElementById('stat-lookup').textContent='—';
+  draw();
+  document.getElementById('info-box').innerHTML=
+    'Press <strong>Lookup</strong> to route a key. Each colored arc shows the hash range owned by that server. '+
+    '<strong>+/− Server</strong> shows minimal remapping.';
+});
+document.getElementById('key-input').addEventListener('keydown',e=>{ if(e.key==='Enter') lookupKey(); });
+
+draw();
+</script>
+</body>
+</html>

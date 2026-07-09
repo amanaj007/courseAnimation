@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sliding Window — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .sw-wrapper { display:flex; flex-direction:column; align-items:center; gap:2rem; width:100%; }
+    .sw-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; }
+    .sw-cell { width:50px; height:50px; border-radius:9px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; border:2px solid var(--border);
+      background:var(--surface2); font-size:1rem; font-weight:700; color:var(--text); position:relative; }
+    .sw-cell .cidx { position:absolute; bottom:-20px; font-size:0.62rem; color:var(--text-muted); }
+    .sw-cell.window { border-color:#6c63ff; background:rgba(108,99,255,0.15); color:#a09cf7; }
+    .sw-cell.left   { border-color:#ff6584; background:rgba(255,101,132,0.15); color:#ff6584; }
+    .sw-cell.right  { border-color:#43e97b; background:rgba(67,233,123,0.15); color:#43e97b; }
+    .sw-cell.best   { border-color:#ffd700; background:rgba(255,215,0,0.15); color:#ffd700; }
+    .sw-stats { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; }
+    .sw-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.35rem 0.9rem; font-size:0.8rem; color:var(--text-muted); }
+    .sw-chip strong { color:var(--text); }
+    .tab-row { display:flex; gap:0.5rem; justify-content:center; margin-bottom:1rem; flex-wrap:wrap; }
+    .tab-btn { padding:0.4rem 1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+    .tab-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+    @media (max-width: 480px) {
+      .sw-cell { width:36px; height:36px; font-size:0.8rem; }
+      .sw-cell .cidx { font-size:0.52rem; bottom:-16px; }
+      .sw-row { gap:3px; }
+      .ptr-row { gap:3px; }
+      .ptr-slot { width:36px; font-size:0.58rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Sliding Window</h1>
+  <p class="subtitle">Reduce O(n²) to O(n) · Fixed & Variable window · Subarray / Substring problems</p>
+
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="maxsum">Max Sum Subarray (k=3)</button>
+    <button class="tab-btn" data-tab="longest">Longest Unique Substring</button>
+  </div>
+
+  <div class="stage" style="flex-direction:column;gap:0.5rem;min-height:260px;">
+    <div class="sw-wrapper">
+      <div class="sw-row" id="sw-row"></div>
+    </div>
+  </div>
+
+  <div class="sw-stats" style="margin-top:1.5rem;">
+    <div class="sw-chip">Window [L, R]: <strong id="lr-val">—</strong></div>
+    <div class="sw-chip">Window Sum/Size: <strong id="sum-val">—</strong></div>
+    <div class="sw-chip">Best: <strong id="best-val">—</strong></div>
+    <div class="sw-chip">Step: <strong id="step-num">0</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-play">▶ Play</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Play</strong> to visualize the sliding window technique.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const ARR_MAXSUM = [2, 1, 5, 1, 3, 2, 7, 4, 1, 6];
+  const STR_LONGEST = 'abcabcbb'.split('');
+  const K = 3;
+  let activeTab='maxsum', steps=[], stepIdx=0, playing=false, playTimer=null, looping=false;
+
+  function buildMaxSumSteps() {
+    const arr=ARR_MAXSUM, s=[];
+    let winSum=arr.slice(0,K).reduce((a,b)=>a+b,0);
+    let bestSum=winSum, bestL=0;
+    s.push({l:0,r:K-1,winSum,bestSum,bestL,arr,label:`Initial window [0,${K-1}], sum = <strong>${winSum}</strong>`});
+    for(let r=K;r<arr.length;r++){
+      winSum+=arr[r]-arr[r-K];
+      const l=r-K+1;
+      if(winSum>bestSum){bestSum=winSum;bestL=l;}
+      s.push({l,r,winSum,bestSum,bestL,arr,label:`Slide window to [${l},${r}]: +${arr[r]} −${arr[r-K]} = <strong>${winSum}</strong>. Best = ${bestSum}`});
+    }
+    s.push({l:bestL,r:bestL+K-1,winSum:bestSum,bestSum,bestL,arr,done:true,label:`Max sum subarray [${bestL},${bestL+K-1}] = <strong>${bestSum}</strong>`});
+    return s;
+  }
+
+  function buildLongestSteps() {
+    const arr=STR_LONGEST, s=[];
+    let l=0, seen={}, maxLen=0, bestL=0;
+    s.push({l:0,r:-1,seen:{},maxLen,bestL,arr,label:`Start: empty window. Find longest substring with unique chars.`});
+    for(let r=0;r<arr.length;r++){
+      while(seen[arr[r]]){delete seen[arr[l]];l++;}
+      seen[arr[r]]=true;
+      if(r-l+1>maxLen){maxLen=r-l+1;bestL=l;}
+      s.push({l,r,seen:{...seen},maxLen,bestL,arr,label:`Window [${l},${r}] = "${arr.slice(l,r+1).join('')}", len=${r-l+1}. Max=${maxLen}`});
+    }
+    s.push({l:bestL,r:bestL+maxLen-1,seen:{},maxLen,bestL,arr,done:true,label:`Longest unique substring = <strong>"${arr.slice(bestL,bestL+maxLen).join('')}"</strong> (len=${maxLen})`});
+    return s;
+  }
+
+  function renderArr(s) {
+    const row=document.getElementById('sw-row');
+    row.innerHTML='';
+    const arr=s.arr;
+    arr.forEach((v,i)=>{
+      const cell=document.createElement('div');
+      let cls='sw-cell';
+      if(s.done&&i>=s.l&&i<=s.r) cls+=' best';
+      else if(i===s.l) cls+=' left';
+      else if(i===s.r) cls+=' right';
+      else if(i>s.l&&i<s.r) cls+=' window';
+      cell.className=cls;
+      cell.innerHTML=`${v}<span class="cidx">${i}</span>`;
+      row.appendChild(cell);
+      gsap.from(cell,{opacity:0.6,duration:0.2});
+    });
+    document.getElementById('lr-val').textContent=`[${s.l}, ${s.r}]`;
+    document.getElementById('sum-val').textContent=activeTab==='maxsum'?s.winSum:`len=${s.r-s.l+1}`;
+    document.getElementById('best-val').textContent=activeTab==='maxsum'?s.bestSum:`${s.maxLen} chars`;
+    document.getElementById('step-num').textContent=stepIdx;
+  }
+
+  function renderStep(s) {
+    document.getElementById('info-box').innerHTML=s.label;
+    renderArr(s);
+  }
+
+  function initStage() {
+    const arr=activeTab==='maxsum'?ARR_MAXSUM:STR_LONGEST;
+    const row=document.getElementById('sw-row'); row.innerHTML='';
+    arr.forEach((v,i)=>{
+      const cell=document.createElement('div'); cell.className='sw-cell';
+      cell.innerHTML=`${v}<span class="cidx">${i}</span>`; row.appendChild(cell);
+    });
+    document.getElementById('lr-val').textContent='—';
+    document.getElementById('sum-val').textContent='—';
+    document.getElementById('best-val').textContent='—';
+    document.getElementById('step-num').textContent='0';
+  }
+
+  function reset(){
+    clearTimeout(playTimer);playing=false;looping=false;steps=[];stepIdx=0;
+    document.getElementById('btn-play').textContent='▶ Play';
+    document.getElementById('btn-loop').textContent='↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    initStage();
+    document.getElementById('info-box').innerHTML='Press <strong>Play</strong> to visualize the sliding window technique.';
+  }
+
+  function init(){if(!steps.length){steps=activeTab==='maxsum'?buildMaxSumSteps():buildLongestSteps();stepIdx=0;}}
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');activeTab=btn.dataset.tab;reset();
+    });
+  });
+  document.getElementById('btn-reset').addEventListener('click',reset);
+  document.getElementById('btn-step').addEventListener('click',()=>{
+    clearTimeout(playTimer);playing=false;document.getElementById('btn-play').textContent='▶ Play';
+    init();if(stepIdx<steps.length)renderStep(steps[stepIdx++]);
+  });
+  document.getElementById('btn-play').addEventListener('click',()=>{
+    if(playing){clearTimeout(playTimer);playing=false;document.getElementById('btn-play').textContent='▶ Play';return;}
+    if(!steps.length||stepIdx>=steps.length){reset();init();}
+    playing=true;document.getElementById('btn-play').textContent='⏸ Pause';
+    function next(){
+      if(!playing){document.getElementById('btn-play').textContent='▶ Play';return;}
+      if(stepIdx>=steps.length){
+        if(looping){playTimer=setTimeout(()=>{reset();init();playing=true;document.getElementById('btn-play').textContent='⏸ Pause';next();},1400);}
+        else{playing=false;document.getElementById('btn-play').textContent='▶ Play';}
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer=setTimeout(next,750);
+    }
+    next();
+  });
+  document.getElementById('btn-loop').addEventListener('click',()=>{
+    looping=!looping;
+    document.getElementById('btn-loop').textContent=looping?'↻ Loop: On':'↻ Loop: Off';
+    document.getElementById('btn-loop').classList.toggle('primary',looping);
+  });
+  reset();
+</script>
+</body>
+</html>

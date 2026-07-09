@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trie — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #trie-svg { width:100%; overflow:visible; }
+    .val-row { display:flex; gap:0.5rem; align-items:center; justify-content:center; flex-wrap:wrap; margin-top:0.75rem; }
+    .val-row input { width:150px; padding:0.4rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text); font-size:0.95rem; letter-spacing:0.05em; }
+    .words-row { display:flex; gap:0.4rem; flex-wrap:wrap; justify-content:center; margin-top:0.5rem; }
+    .word-tag { background:rgba(108,99,255,0.15); border:1px solid #6c63ff; border-radius:6px;
+      padding:0.2rem 0.6rem; font-size:0.78rem; color:#a09cf7; cursor:pointer; }
+    .word-tag:hover { background:rgba(108,99,255,0.3); }
+    .stats-row { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #trie-svg { min-width:380px; }
+      .val-row { flex-wrap:wrap; }
+      .val-row input { width:110px; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Trie (Prefix Tree)</h1>
+  <p class="subtitle">O(m) insert, search, prefix · Autocomplete · Spell check · IP routing</p>
+
+  <div class="stage" style="flex-direction:column; gap:0.5rem; min-height:300px; overflow:visible;">
+    <svg id="trie-svg" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="words-row" id="words-row"></div>
+
+  <div class="stats-row">
+    <div class="stat-chip">Words: <strong id="stat-words">0</strong></div>
+    <div class="stat-chip">Nodes: <strong id="stat-nodes">1</strong></div>
+  </div>
+
+  <div class="val-row">
+    <label style="color:var(--text-muted);font-size:0.9rem;">Word:</label>
+    <input type="text" id="word-input" value="apple" maxlength="8"/>
+    <button class="btn primary" id="btn-insert">Insert</button>
+    <button class="btn" id="btn-search">Search</button>
+    <button class="btn" id="btn-prefix">Prefix</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Insert words to build the trie. Search for a word or find all words with a prefix.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('trie-svg');
+
+  // Trie node
+  class TrieNode { constructor(ch){ this.ch=ch; this.children={}; this.isEnd=false; } }
+  let root=new TrieNode(''), wordSet=new Set(), highlightPath=[], nodeCount=1;
+
+  function insertWord(word){
+    if(!word)return false;
+    let node=root; let added=false;
+    for(const ch of word){
+      if(!node.children[ch]){node.children[ch]=new TrieNode(ch);nodeCount++;added=true;}
+      node=node.children[ch];
+    }
+    if(!node.isEnd){node.isEnd=true;wordSet.add(word);return true;}
+    return false;
+  }
+
+  function searchWord(word){
+    let node=root;
+    for(const ch of word){if(!node.children[ch])return false;node=node.children[ch];}
+    return node.isEnd;
+  }
+
+  function getPrefix(prefix){
+    let node=root;
+    for(const ch of prefix){if(!node.children[ch])return [];}
+    // collect all words from this node
+    const words=[];
+    function dfs(n,path){
+      if(n.isEnd)words.push(path);
+      for(const[ch,child]of Object.entries(n.children))dfs(child,path+ch);
+    }
+    let node2=root;
+    for(const ch of prefix)node2=node2.children[ch];
+    dfs(node2,prefix);
+    return words;
+  }
+
+  function getPathNodes(word){
+    const path=[''];
+    let node=root;
+    for(const ch of word){if(!node.children[ch])break;node=node.children[ch];path.push(ch);}
+    return path;
+  }
+
+  // Layout: assign x,y to each node by level/position
+  const NODE_H=55, NODE_W_MIN=40;
+  function layoutTrie(){
+    const positions={};
+    function assignPos(node, depth, left, right){
+      positions[nodeId(node)]={x:(left+right)/2, y:20+depth*NODE_H, node};
+      const children=Object.values(node.children);
+      if(!children.length)return;
+      const segW=(right-left)/children.length;
+      children.forEach((child,i)=>assignPos(child,depth+1,left+i*segW,left+(i+1)*segW));
+    }
+    assignPos(root,0,0,700);
+    return positions;
+  }
+
+  function nodeId(node){return node.ch+'_'+Object.keys(node.children).join('')+'_'+node.isEnd;}
+
+  function drawTrie(path=[]){
+    svg.innerHTML='';
+    const pos=layoutTrie();
+
+    function drawNode(node){
+      const p=pos[nodeId(node)];if(!p)return;
+      const isHL=path.includes(node.ch)||node===root;
+      Object.values(node.children).forEach(child=>{
+        const cp=pos[nodeId(child)];if(!cp)return;
+        const isEdgeHL=path.includes(child.ch);
+        svg.appendChild(mkEl('line',{x1:p.x,y1:p.y,x2:cp.x,y2:cp.y,
+          stroke:isEdgeHL?'#6c63ff':'#2e3148','stroke-width':isEdgeHL?2:1.5}));
+        drawNode(child);
+      });
+      const isPathNode=path.length&&path.some((_,i)=>getPathAt(root,path.slice(0,i+1))===node);
+      const isEnd=node.isEnd;
+      const color=isEnd?'#43e97b':isPathNode?'#ffd700':'#6c63ff';
+      const bg=isEnd?'rgba(67,233,123,0.15)':isPathNode?'rgba(255,215,0,0.12)':'rgba(108,99,255,0.08)';
+      svg.appendChild(mkEl('circle',{cx:p.x,cy:p.y,r:node===root?12:14,
+        fill:bg,stroke:color,'stroke-width':'2'}));
+      svg.appendChild(mkEl('text',{x:p.x,y:p.y,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:color,'font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
+        node===root?'ROOT':node.ch.toUpperCase()));
+      if(isEnd){svg.appendChild(mkEl('circle',{cx:p.x+10,cy:p.y-10,r:'4',fill:'#43e97b'}));}
+    }
+    drawNode(root);
+    document.getElementById('stat-nodes').textContent=nodeCount;
+  }
+
+  function getPathAt(node,chars){
+    let cur=node;
+    for(const ch of chars){if(!cur.children[ch])return null;cur=cur.children[ch];}
+    return cur;
+  }
+
+  function mkEl(tag,attrs,text){
+    const e=document.createElementNS(NS,tag);
+    for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
+    if(text!==undefined)e.textContent=text;return e;
+  }
+
+  function renderWordTags(){
+    const row=document.getElementById('words-row');
+    row.innerHTML='';
+    if(!wordSet.size){row.innerHTML='<em style="color:var(--text-muted);font-size:0.8rem;">no words</em>';return;}
+    wordSet.forEach(w=>{
+      const tag=document.createElement('div');tag.className='word-tag';tag.textContent=w;
+      tag.onclick=()=>{document.getElementById('word-input').value=w;};
+      row.appendChild(tag);
+    });
+    document.getElementById('stat-words').textContent=wordSet.size;
+  }
+
+  document.getElementById('btn-insert').addEventListener('click',()=>{
+    const word=document.getElementById('word-input').value.toLowerCase().replace(/[^a-z]/g,'');
+    if(!word){document.getElementById('info-box').innerHTML='Enter a word to insert.';return;}
+    if(word.length>8){document.getElementById('info-box').innerHTML='Max 8 characters for display.';return;}
+    const added=insertWord(word);
+    drawTrie([]);renderWordTags();
+    document.getElementById('info-box').innerHTML=added
+      ?`Inserted <strong>"${word}"</strong>. Each character is a node. End marker (🟢) at last character.`
+      :`<strong>"${word}"</strong> already exists in the trie.`;
+    gsap.from(svg.querySelectorAll('circle'),{scale:0.8,opacity:0.5,duration:0.3,stagger:0.02});
+  });
+
+  document.getElementById('btn-search').addEventListener('click',()=>{
+    const word=document.getElementById('word-input').value.toLowerCase().replace(/[^a-z]/g,'');
+    const found=searchWord(word);
+    const pathChars=word.split('');
+    drawTrie(pathChars);
+    document.getElementById('info-box').innerHTML=found
+      ?`✅ <strong>"${word}"</strong> FOUND in the trie. Path: ROOT → ${word.split('').join(' → ')}`
+      :`❌ <strong>"${word}"</strong> NOT FOUND${getPrefix(word).length?` (but it is a prefix of: ${getPrefix(word).join(', ')})`:''}.`;
+  });
+
+  document.getElementById('btn-prefix').addEventListener('click',()=>{
+    const prefix=document.getElementById('word-input').value.toLowerCase().replace(/[^a-z]/g,'');
+    const words=getPrefix(prefix);
+    drawTrie(prefix.split(''));
+    document.getElementById('info-box').innerHTML=words.length
+      ?`🔍 Prefix <strong>"${prefix}"</strong> matches: <strong>${words.join(', ')}</strong>`
+      :`No words found with prefix <strong>"${prefix}"</strong>.`;
+  });
+
+  document.getElementById('btn-reset').addEventListener('click',()=>{
+    root=new TrieNode('');wordSet=new Set();nodeCount=1;
+    drawTrie();renderWordTags();
+    document.getElementById('info-box').innerHTML='Insert words to build the trie. Search for a word or find all words with a prefix.';
+  });
+
+  // Seed
+  ['app','apple','apply','apt','bat','ball','band'].forEach(w=>insertWord(w));
+  drawTrie();renderWordTags();
+  document.getElementById('info-box').innerHTML='Pre-seeded with app, apple, apply, apt, bat, ball, band. Try searching "app" or Prefix "ba".';
+</script>
+</body>
+</html>

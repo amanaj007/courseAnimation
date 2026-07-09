@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Circuit Breaker — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #cb-svg { width:100%; overflow:visible; }
+    .state-cards { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-top:0.75rem; }
+    .state-card { background:var(--surface); border:2px solid var(--border); border-radius:12px;
+      padding:0.75rem 1.25rem; text-align:center; min-width:140px; transition:all 0.3s; }
+    .state-card.active { transform:scale(1.05); }
+    .state-card.closed-card.active { border-color:#43e97b; background:rgba(67,233,123,0.08); }
+    .state-card.open-card.active   { border-color:#ff6584; background:rgba(255,101,132,0.08); }
+    .state-card.half-card.active   { border-color:#ffd700; background:rgba(255,215,0,0.08); }
+    .state-card h3 { font-size:0.95rem; margin-bottom:0.2rem; }
+    .state-card p  { font-size:0.72rem; color:var(--text-muted); }
+    .stats-row { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #cb-svg { min-width:380px; }
+      .state-cards { flex-direction:column; gap:0.6rem; }
+      .state-card { min-width:0; width:100%; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Circuit Breaker</h1>
+  <p class="subtitle">Resilience pattern · Closed → Open → Half-Open · Prevents cascade failures</p>
+
+  <div class="stage" style="min-height:240px; overflow:visible; flex-direction:column; gap:0.5rem;">
+    <svg id="cb-svg" viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="state-cards">
+    <div class="state-card closed-card active" id="card-closed">
+      <h3 style="color:#43e97b;">🟢 Closed</h3>
+      <p>Normal operation. All requests pass through. Monitors failures.</p>
+    </div>
+    <div class="state-card open-card" id="card-open">
+      <h3 style="color:#ff6584;">🔴 Open</h3>
+      <p>Too many failures. All requests rejected immediately. Waits for timeout.</p>
+    </div>
+    <div class="state-card half-card" id="card-half">
+      <h3 style="color:#ffd700;">🟡 Half-Open</h3>
+      <p>Testing recovery. Allows limited requests. Success → Closed, Fail → Open.</p>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">State: <strong id="stat-state">Closed</strong></div>
+    <div class="stat-chip">Failures: <strong id="stat-failures">0</strong> / 3</div>
+    <div class="stat-chip">Allowed: <strong id="stat-allowed">0</strong></div>
+    <div class="stat-chip">Rejected: <strong id="stat-rejected">0</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-success">✅ Success Request</button>
+    <button class="btn" id="btn-fail">❌ Failing Request</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Circuit is <strong>Closed</strong>. Send requests — after 3 consecutive failures the circuit opens.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('cb-svg');
+  // States: closed | open | half
+  let cbState='closed', failures=0, allowed=0, rejected=0, animating=false, autoOn=false, autoTimer=null;
+  const FAILURE_THRESHOLD=3;
+  let openTimer=null;
+
+  function el(tag,attrs,text){
+    const e=document.createElementNS(NS,tag);
+    for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
+    if(text!==undefined)e.textContent=text;return e;
+  }
+
+  const STATE_COLOR={ closed:'#43e97b', open:'#ff6584', half:'#ffd700' };
+
+  function draw(){
+    svg.innerHTML='';
+    const col=STATE_COLOR[cbState];
+
+    // Client
+    svg.appendChild(el('rect',{x:30,y:78,width:90,height:44,rx:'8',fill:'#1a1d27',stroke:'#2e3148','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:75,y:105,'text-anchor':'middle','dominant-baseline':'middle',fill:'#e8eaf6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+
+    // wire client → breaker
+    svg.appendChild(el('line',{x1:120,y1:100,x2:220,y2:100,stroke:'#2e3148','stroke-width':'2'}));
+
+    // Circuit Breaker box
+    const bx=220,by=60,bw=160,bh=80;
+    svg.appendChild(el('rect',{x:bx,y:by,width:bw,height:bh,rx:'12',fill:`rgba(${cbState==='closed'?'67,233,123':cbState==='open'?'255,101,132':'255,215,0'},0.1)`,stroke:col,'stroke-width':'2.5'}));
+    // breaker symbol
+    if(cbState==='closed'){
+      svg.appendChild(el('line',{x1:280,y1:85,x2:310,y2:115,stroke:col,'stroke-width':'3','stroke-linecap':'round'}));
+      svg.appendChild(el('circle',{cx:280,cy:85,r:'4',fill:col}));
+      svg.appendChild(el('circle',{cx:310,cy:115,r:'4',fill:col}));
+    } else if(cbState==='open'){
+      svg.appendChild(el('line',{x1:280,y1:85,x2:290,y2:70,stroke:col,'stroke-width':'3','stroke-linecap':'round'}));
+      svg.appendChild(el('circle',{cx:280,cy:85,r:'4',fill:col}));
+      svg.appendChild(el('circle',{cx:300,cy:115,r:'4',fill:col}));
+      svg.appendChild(el('text',{x:310,y:78,'text-anchor':'middle',fill:'#ff6584','font-size':'18'},'⚡'));
+    } else {
+      svg.appendChild(el('line',{x1:280,y1:85,x2:305,y2:100,stroke:col,'stroke-width':'3','stroke-linecap':'round','stroke-dasharray':'5 3'}));
+      svg.appendChild(el('circle',{cx:280,cy:85,r:'4',fill:col}));
+      svg.appendChild(el('circle',{cx:310,cy:115,r:'4',fill:col}));
+    }
+    svg.appendChild(el('text',{x:bx+bw/2,y:by-12,'text-anchor':'middle',fill:col,'font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
+      `Circuit Breaker [${cbState.toUpperCase()}]`));
+
+    // failure dots
+    for(let i=0;i<FAILURE_THRESHOLD;i++){
+      svg.appendChild(el('circle',{cx:bx+30+i*30,cy:by+bh+18,r:'7',fill:i<failures?'#ff6584':'#2e3148',stroke:i<failures?'#ff6584':'#444','stroke-width':'1.5'}));
+    }
+    svg.appendChild(el('text',{x:bx+bw/2,y:by+bh+32,'text-anchor':'middle',fill:'#8b8fa8','font-size':'8','font-family':"'Segoe UI',system-ui,sans-serif"},`${failures}/${FAILURE_THRESHOLD} failures`));
+
+    // wire breaker → service
+    if(cbState!=='open'){
+      svg.appendChild(el('line',{x1:380,y1:100,x2:480,y2:100,stroke:col,'stroke-width':'2'}));
+    } else {
+      svg.appendChild(el('line',{x1:380,y1:100,x2:480,y2:100,stroke:'#ff6584','stroke-width':'1.5','stroke-dasharray':'5 4',opacity:'0.4'}));
+    }
+
+    // Service
+    svg.appendChild(el('rect',{x:480,y:72,width:110,height:56,rx:'8',fill:'#1a1d27',stroke:cbState==='open'?'#ff6584':'#43e97b','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:535,y:98,'text-anchor':'middle','dominant-baseline':'middle',fill:cbState==='open'?'#ff6584':'#43e97b','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Downstream'));
+    svg.appendChild(el('text',{x:535,y:114,'text-anchor':'middle','dominant-baseline':'middle',fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},cbState==='open'?'⚠ Unhealthy':'✓ Service'));
+
+    // packet
+    svg.appendChild(el('circle',{id:'cb-pkt',cx:'-50',cy:'-50',r:'8',fill:'#ffd700',opacity:'0'}));
+  }
+
+  function updateStateCards(){
+    ['closed','open','half'].forEach(s=>{
+      const card=document.getElementById(`card-${s}`);
+      card.classList.toggle('active',cbState===s);
+    });
+    document.getElementById('stat-state').textContent=cbState.charAt(0).toUpperCase()+cbState.slice(1);
+    document.getElementById('stat-failures').textContent=failures;
+    document.getElementById('stat-allowed').textContent=allowed;
+    document.getElementById('stat-rejected').textContent=rejected;
+  }
+
+  function animatePkt(ok, onDone){
+    if(animating){onDone&&onDone();return;}
+    animating=true;
+    const pkt=document.getElementById('cb-pkt');
+    if(!pkt){animating=false;onDone&&onDone();return;}
+    if(cbState==='open'){
+      // bounce back at circuit breaker
+      gsap.set(pkt,{attr:{cx:75,cy:100},opacity:1,fill:'#ff6584'});
+      gsap.to(pkt,{attr:{cx:250,cy:100},duration:0.3,ease:'power2.in',onComplete:()=>{
+        gsap.to(pkt,{attr:{cx:75,cy:100},duration:0.3,ease:'power2.out',onComplete:()=>{
+          gsap.to(pkt,{opacity:0,duration:0.2,onComplete:()=>{animating=false;onDone&&onDone();}});
+        }});
+      }});
+    } else {
+      gsap.set(pkt,{attr:{cx:75,cy:100},opacity:1,fill:ok?'#43e97b':'#ff6584'});
+      gsap.to(pkt,{attr:{cx:535,cy:100},duration:0.55,ease:'power2.inOut',onComplete:()=>{
+        gsap.to(pkt,{opacity:0,duration:0.3,onComplete:()=>{animating=false;onDone&&onDone();}});
+      }});
+    }
+  }
+
+  function transition(newState){
+    cbState=newState;
+    draw(); updateStateCards();
+    if(newState==='open'){
+      clearTimeout(openTimer);
+      document.getElementById('info-box').innerHTML='🔴 <strong>Circuit OPEN!</strong> All requests will be rejected. Auto half-open in 3s…';
+      openTimer=setTimeout(()=>{
+        if(cbState==='open'){cbState='half';failures=0;draw();updateStateCards();
+          document.getElementById('info-box').innerHTML='🟡 <strong>Half-Open:</strong> Testing recovery. Next request will probe the service.';}
+      },3000);
+    }
+  }
+
+  function sendSuccess(){
+    if(animating)return;
+    if(cbState==='open'){
+      rejected++;document.getElementById('info-box').innerHTML='🔴 <strong>Rejected!</strong> Circuit is OPEN — request blocked immediately.';
+      updateStateCards();animatePkt(false);return;
+    }
+    allowed++;failures=0;
+    if(cbState==='half'){transition('closed');document.getElementById('info-box').innerHTML='✅ <strong>Recovery confirmed!</strong> Circuit → CLOSED.';}
+    else document.getElementById('info-box').innerHTML=`✅ Request succeeded. Failure counter reset. Allowed: ${allowed}`;
+    draw();updateStateCards();animatePkt(true);
+  }
+
+  function sendFail(){
+    if(animating)return;
+    if(cbState==='open'){
+      rejected++;document.getElementById('info-box').innerHTML='🔴 <strong>Rejected!</strong> Circuit is OPEN — request blocked immediately.';
+      updateStateCards();animatePkt(false);return;
+    }
+    failures++;allowed++;
+    if(failures>=FAILURE_THRESHOLD||cbState==='half'){
+      animatePkt(false,()=>transition('open'));
+      return;
+    }
+    document.getElementById('info-box').innerHTML=`❌ Request failed. Failures: <strong>${failures}/${FAILURE_THRESHOLD}</strong>. ${FAILURE_THRESHOLD-failures} more until OPEN.`;
+    draw();updateStateCards();animatePkt(false);
+  }
+
+  document.getElementById('btn-success').addEventListener('click',sendSuccess);
+  document.getElementById('btn-fail').addEventListener('click',sendFail);
+  document.getElementById('btn-auto').addEventListener('click',()=>{
+    autoOn=!autoOn;
+    const btn=document.getElementById('btn-auto');
+    btn.textContent=autoOn?'↻ Loop: On':'↻ Loop: Off';
+    btn.classList.toggle('primary',autoOn);
+    if(autoOn) autoTimer=setInterval(()=>{Math.random()<0.4?sendFail():sendSuccess();},1000);
+    else clearInterval(autoTimer);
+  });
+  document.getElementById('btn-reset').addEventListener('click',()=>{
+    clearInterval(autoTimer);clearTimeout(openTimer);autoOn=false;animating=false;
+    cbState='closed';failures=0;allowed=0;rejected=0;
+    document.getElementById('btn-auto').textContent='↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    draw();updateStateCards();
+    document.getElementById('info-box').innerHTML='Circuit is <strong>Closed</strong>. Send requests — after 3 consecutive failures the circuit opens.';
+  });
+
+  draw(); updateStateCards();
+</script>
+</body>
+</html>

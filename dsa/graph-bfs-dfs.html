@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Graph BFS & DFS — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #graph-svg { min-width:320px; }
+    }
+  </style>
+  <style>
+    #graph-svg { width:100%; overflow:visible; cursor:default; }
+    .algo-legend { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem; justify-content:center; }
+    .algo-btn { padding:0.35rem 0.9rem; border-radius:999px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.8rem; cursor:pointer; transition:all 0.2s; }
+    .algo-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .visited-order { display:flex; gap:4px; flex-wrap:wrap; margin-top:0.75rem; justify-content:center; }
+    .v-chip { background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+      padding:0.2rem 0.5rem; font-size:0.8rem; color:var(--text-muted); }
+    .v-chip.done { background:rgba(108,99,255,0.15); border-color:var(--accent); color:var(--accent); }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Graph BFS & DFS</h1>
+  <p class="subtitle">Breadth-First Search · Depth-First Search · Start from any node</p>
+
+  <div class="stage" style="min-height:320px; overflow:visible;">
+    <svg id="graph-svg" viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="algo-legend">
+    <button class="algo-btn active" data-algo="bfs">BFS (Queue)</button>
+    <button class="algo-btn" data-algo="dfs">DFS (Stack/Recursion)</button>
+  </div>
+  <div class="visited-order" id="visited-order"></div>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-run">▶ Run</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Click a node to set start. Choose BFS or DFS, then Run.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('graph-svg');
+
+  // Graph definition
+  const NODES = [
+    { id:0, label:'A', x:120, y:60  },
+    { id:1, label:'B', x:280, y:40  },
+    { id:2, label:'C', x:420, y:80  },
+    { id:3, label:'D', x:560, y:50  },
+    { id:4, label:'E', x:80,  y:200 },
+    { id:5, label:'F', x:220, y:220 },
+    { id:6, label:'G', x:380, y:200 },
+    { id:7, label:'H', x:540, y:220 },
+    { id:8, label:'I', x:650, y:150 },
+  ];
+
+  const EDGES = [
+    [0,1],[0,4],[1,2],[1,5],[2,3],[2,6],[3,8],[4,5],[5,6],[6,7],[7,8],[3,7]
+  ];
+
+  // adjacency list
+  const adj = {};
+  NODES.forEach(n => { adj[n.id] = []; });
+  EDGES.forEach(([a,b]) => { adj[a].push(b); adj[b].push(a); });
+
+  let algo = 'bfs';
+  let startNode = 0;
+  let steps = [];
+  let stepIdx = 0;
+  let playing = false;
+  let playTimer = null;
+  let looping = false;
+
+  // node state: 'default' | 'frontier' | 'visited' | 'current'
+  let nodeState = {};
+  NODES.forEach(n => { nodeState[n.id] = 'default'; });
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    return e;
+  }
+
+  function nodeColor(state) {
+    return { default:'#1a1d27', frontier:'rgba(255,215,0,0.15)', visited:'rgba(108,99,255,0.15)', current:'rgba(67,233,123,0.2)' }[state];
+  }
+  function nodeStroke(id, state) {
+    if (id === startNode) return '#ffd700';
+    return { default:'#2e3148', frontier:'#ffd700', visited:'#6c63ff', current:'#43e97b' }[state];
+  }
+  function nodeTextColor(state) {
+    return { default:'#e8eaf6', frontier:'#ffd700', visited:'#a09cf7', current:'#43e97b' }[state];
+  }
+
+  function drawGraph() {
+    svg.innerHTML = '';
+    // defs
+    const defs = el('defs', {});
+    svg.appendChild(defs);
+
+    // edges
+    EDGES.forEach(([a,b]) => {
+      const na = NODES[a], nb = NODES[b];
+      svg.appendChild(el('line', { x1:na.x, y1:na.y, x2:nb.x, y2:nb.y,
+        stroke:'#2e3148', 'stroke-width':'2', id:`edge-${a}-${b}` }));
+    });
+
+    // nodes
+    NODES.forEach(n => {
+      const state = nodeState[n.id];
+      const g = el('g', { id:`gnode-${n.id}`, style:'cursor:pointer;' });
+      g.appendChild(el('circle', { cx:n.x, cy:n.y, r:'26', fill:nodeColor(state),
+        stroke: nodeStroke(n.id, state), 'stroke-width': n.id===startNode ? '2.5' : '2',
+        id:`circle-${n.id}` }));
+
+      const t = el('text', { x:n.x, y:n.y+1, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill: nodeTextColor(state), 'font-size':'14', 'font-weight':'700',
+        'font-family':"'Segoe UI',system-ui,sans-serif", 'pointer-events':'none' });
+      t.textContent = n.label;
+      g.appendChild(t);
+
+      // start indicator
+      if (n.id === startNode) {
+        const st = el('text', { x:n.x, y:n.y-34, 'text-anchor':'middle', fill:'#ffd700',
+          'font-size':'9', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" });
+        st.textContent = 'START';
+        g.appendChild(st);
+      }
+
+      g.addEventListener('click', () => {
+        startNode = n.id;
+        resetVisual();
+      });
+
+      svg.appendChild(g);
+    });
+  }
+
+  function computeBFS(start) {
+    const steps = [];
+    const visited = new Set();
+    const queue = [start];
+    visited.add(start);
+    steps.push({ type:'enqueue', nodes:[start], info:`Start BFS from <strong>${NODES[start].label}</strong>. Enqueue it.` });
+    while (queue.length) {
+      const cur = queue.shift();
+      steps.push({ type:'visit', node:cur, info:`Dequeue <strong>${NODES[cur].label}</strong> → mark visited.` });
+      const neighbors = adj[cur].filter(n => !visited.has(n));
+      neighbors.forEach(nb => {
+        visited.add(nb);
+        queue.push(nb);
+      });
+      if (neighbors.length)
+        steps.push({ type:'enqueue', nodes:neighbors, info:`Enqueue neighbors of <strong>${NODES[cur].label}</strong>: ${neighbors.map(x=>NODES[x].label).join(', ')}` });
+    }
+    return steps;
+  }
+
+  function computeDFS(start) {
+    const steps = [];
+    const visited = new Set();
+    function dfs(node) {
+      visited.add(node);
+      steps.push({ type:'visit', node, info:`Visit <strong>${NODES[node].label}</strong> (DFS going deeper).` });
+      adj[node].forEach(nb => {
+        if (!visited.has(nb)) {
+          steps.push({ type:'frontier', node:nb, info:`Explore neighbor <strong>${NODES[nb].label}</strong> of ${NODES[node].label}.` });
+          dfs(nb);
+        }
+      });
+    }
+    steps.push({ type:'frontier', node:start, info:`Start DFS from <strong>${NODES[start].label}</strong>.` });
+    dfs(start);
+    return steps;
+  }
+
+  let visitedOrder = [];
+
+  function applyStep(s) {
+    if (s.type === 'visit') {
+      nodeState[s.node] = 'visited';
+      visitedOrder.push(NODES[s.node].label);
+      gsap.fromTo(`#circle-${s.node}`, { attr:{ r:'26' } }, { attr:{ r:'30' }, duration:0.15, yoyo:true, repeat:1 });
+    } else if (s.type === 'frontier' || s.type === 'enqueue') {
+      const arr = s.nodes ?? [s.node];
+      arr.forEach(n => { if (nodeState[n] === 'default') nodeState[n] = 'frontier'; });
+    }
+    drawGraph();
+    updateVisitedChips();
+    document.getElementById('info-box').innerHTML = s.info;
+  }
+
+  function updateVisitedChips() {
+    const cont = document.getElementById('visited-order');
+    cont.innerHTML = '';
+    NODES.forEach(n => {
+      const chip = document.createElement('div');
+      chip.className = `v-chip ${visitedOrder.includes(n.label) ? 'done' : ''}`;
+      chip.textContent = n.label;
+      cont.appendChild(chip);
+    });
+  }
+
+  function resetVisual() {
+    clearTimeout(playTimer); playing = false;
+    document.getElementById('btn-run').textContent = '▶ Run';
+    nodeState = {};
+    NODES.forEach(n => { nodeState[n.id] = 'default'; });
+    steps = []; stepIdx = 0; visitedOrder = [];
+    drawGraph();
+    updateVisitedChips();
+    document.getElementById('info-box').innerHTML = `Click a node to set start. Algorithm: <strong>${algo.toUpperCase()}</strong>`;
+  }
+
+  function initSteps() {
+    if (!steps.length) {
+      steps = algo === 'bfs' ? computeBFS(startNode) : computeDFS(startNode);
+      stepIdx = 0;
+    }
+  }
+
+  document.querySelectorAll('.algo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      algo = btn.dataset.algo;
+      resetVisual();
+    });
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', resetVisual);
+
+  document.getElementById('btn-step').addEventListener('click', () => {
+    clearTimeout(playTimer); playing = false;
+    document.getElementById('btn-run').textContent = '▶ Run';
+    initSteps();
+    if (stepIdx < steps.length) applyStep(steps[stepIdx++]);
+    else document.getElementById('info-box').innerHTML = 'Traversal complete!';
+  });
+
+  document.getElementById('btn-run').addEventListener('click', () => {
+    if (playing) { clearTimeout(playTimer); playing = false; document.getElementById('btn-run').textContent = '▶ Run'; return; }
+    if (!steps.length || stepIdx >= steps.length) { resetVisual(); initSteps(); }
+    playing = true;
+    document.getElementById('btn-run').textContent = '⏸ Pause';
+    function next() {
+      if (!playing) { document.getElementById('btn-run').textContent = '▶ Run'; return; }
+      if (stepIdx >= steps.length) {
+        if (looping) {
+          document.getElementById('info-box').innerHTML += ' <strong>— Looping…</strong>';
+          playTimer = setTimeout(() => { resetVisual(); initSteps(); next(); }, 1500);
+        } else {
+          playing = false;
+          document.getElementById('btn-run').textContent = '▶ Run';
+          document.getElementById('info-box').innerHTML += ' <strong>— Done!</strong>';
+        }
+        return;
+      }
+      applyStep(steps[stepIdx++]);
+      playTimer = setTimeout(next, 900);
+    }
+    next();
+  });
+
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+  });
+
+  drawGraph();
+  updateVisitedChips();
+</script>
+</body>
+</html>

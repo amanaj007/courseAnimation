@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick Sort — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .bar-wrap { display:flex; align-items:flex-end; justify-content:center; gap:5px; height:220px; width:100%; }
+    .bar { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:46px; border-radius:6px 6px 0 0; position:relative; transition:background 0.2s; }
+    .bar-val { font-size:0.75rem; font-weight:700; color:var(--text); margin-bottom:3px; }
+    .bar-idx { font-size:0.6rem; color:var(--text-muted); margin-top:3px; }
+    .bar.default  { background:var(--surface2); border:2px solid var(--border); }
+    .bar.pivot    { background:rgba(255,215,0,0.25); border:2px solid #ffd700; }
+    .bar.left     { background:rgba(108,99,255,0.25); border:2px solid #6c63ff; }
+    .bar.right    { background:rgba(255,101,132,0.25); border:2px solid #ff6584; }
+    .bar.sorted   { background:rgba(67,233,123,0.2);  border:2px solid #43e97b; }
+    .bar.swapping { background:rgba(255,152,0,0.3);   border:2px solid #ff9800; }
+    .legend { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; font-size:0.75rem; color:var(--text-muted); }
+    .ldot { width:10px; height:10px; border-radius:3px; display:inline-block; margin-right:4px; }
+    .complexity { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .cmp-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .cmp-chip strong { color:var(--text); }
+    @media (max-width: 480px) {
+      .bar-wrap { gap:3px; height:160px; }
+      .bar { width:30px !important; }
+      .bar-val { font-size:0.62rem; }
+      .bar-idx { font-size:0.55rem; }
+      .legend { gap:0.5rem; font-size:0.68rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Quick Sort</h1>
+  <p class="subtitle">Divide & Conquer · O(n log n) avg · In-place pivot partitioning</p>
+  <div class="stage" style="flex-direction:column; gap:0.5rem; min-height:300px;">
+    <div class="bar-wrap" id="bar-wrap"></div>
+    <div class="legend">
+      <span><span class="ldot" style="background:#ffd700;"></span>Pivot</span>
+      <span><span class="ldot" style="background:#6c63ff;"></span>≤ pivot (left)</span>
+      <span><span class="ldot" style="background:#ff6584;"></span>&gt; pivot (right)</span>
+      <span><span class="ldot" style="background:#ff9800;"></span>Swapping</span>
+      <span><span class="ldot" style="background:#43e97b;"></span>Sorted</span>
+    </div>
+  </div>
+  <div class="complexity">
+    <div class="cmp-chip">Step: <strong id="step-num">0</strong></div>
+    <div class="cmp-chip">Comparisons: <strong id="cmp-count">0</strong></div>
+    <div class="cmp-chip">Swaps: <strong id="swap-count">0</strong></div>
+  </div>
+  <div class="controls">
+    <button class="btn primary" id="btn-play">▶ Play</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Play</strong> to visualize Quick Sort with pivot partitioning.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const ORIGINAL = [64, 34, 25, 12, 22, 11, 90, 47];
+  const MAX_VAL  = Math.max(...ORIGINAL);
+  let arr, steps, stepIdx, playing, playTimer, looping, cmpCount, swapCount;
+
+  function buildSteps(a) {
+    const s = [];
+    const sorted = new Set();
+    function partition(arr, lo, hi) {
+      const pivot = arr[hi];
+      let i = lo - 1;
+      s.push({ type:'pivot', arr:[...arr], pivot:hi, lo, hi, sorted:[...sorted], label:`Pivot = ${pivot} (index ${hi})` });
+      for (let j = lo; j < hi; j++) {
+        s.push({ type:'compare', arr:[...arr], pivot:hi, lo, hi, j, i, sorted:[...sorted],
+          label:`Compare arr[${j}]=${arr[j]} with pivot ${pivot}` });
+        cmpCount++;
+        if (arr[j] <= pivot) {
+          i++;
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+          if (i !== j) { swapCount++; s.push({ type:'swap', arr:[...arr], pivot:hi, lo, hi, i, j, sorted:[...sorted], label:`Swap arr[${i}]=${arr[i]} ↔ arr[${j}]=${arr[j]}` }); }
+        }
+      }
+      [arr[i+1], arr[hi]] = [arr[hi], arr[i+1]];
+      const pi = i + 1;
+      sorted.add(pi);
+      s.push({ type:'placed', arr:[...arr], pivotIdx:pi, lo, hi, sorted:[...sorted], label:`Pivot ${arr[pi]} placed at index ${pi}` });
+      return pi;
+    }
+    function quickSort(arr, lo, hi) {
+      if (lo < hi) {
+        const pi = partition(arr, lo, hi);
+        quickSort(arr, lo, pi - 1);
+        quickSort(arr, pi + 1, hi);
+      } else if (lo === hi) sorted.add(lo);
+    }
+    quickSort(a, 0, a.length - 1);
+    s.push({ type:'done', arr:[...a], sorted:[...Array(a.length).keys()] });
+    return s;
+  }
+
+  function buildBars(a, states={}, pivotIdx=-1) {
+    const wrap = document.getElementById('bar-wrap');
+    wrap.innerHTML = '';
+    a.forEach((v, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'bar ' + (states[i] || 'default');
+      bar.style.height = `${Math.round((v/MAX_VAL)*180)+20}px`;
+      bar.innerHTML = `<div class="bar-val">${v}</div><div class="bar-idx">${i}</div>`;
+      if (i === pivotIdx) { const tag = document.createElement('div'); tag.style.cssText='font-size:0.6rem;color:#ffd700;font-weight:700;position:absolute;top:-18px;'; tag.textContent='▼ P'; bar.appendChild(tag); }
+      wrap.appendChild(bar);
+      gsap.from(bar, { opacity:0.5, duration:0.15 });
+    });
+  }
+
+  function renderStep(s) {
+    document.getElementById('step-num').textContent = stepIdx;
+    document.getElementById('cmp-count').textContent = cmpCount;
+    document.getElementById('swap-count').textContent = swapCount;
+    document.getElementById('info-box').innerHTML = `<strong>${s.type.charAt(0).toUpperCase()+s.type.slice(1)}:</strong> ${s.label}`;
+    const states = {};
+    (s.sorted||[]).forEach(i => states[i]='sorted');
+    if (s.type==='pivot')   { states[s.pivot]='pivot'; }
+    if (s.type==='compare') { states[s.pivot]='pivot'; if(s.j!==undefined) states[s.j]=(s.arr[s.j]<=(s.arr[s.pivot])?'left':'right'); }
+    if (s.type==='swap')    { states[s.pivot]='pivot'; states[s.i]='swapping'; states[s.j]='swapping'; }
+    if (s.type==='placed')  { states[s.pivotIdx]='sorted'; }
+    buildBars(s.arr, states, s.type==='pivot'?s.pivot:-1);
+  }
+
+  function reset() {
+    clearTimeout(playTimer); playing=false; looping=false;
+    arr=[...ORIGINAL]; steps=[]; stepIdx=0; cmpCount=0; swapCount=0;
+    document.getElementById('btn-play').textContent='▶ Play';
+    document.getElementById('btn-loop').textContent='↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    document.getElementById('cmp-count').textContent='0';
+    document.getElementById('swap-count').textContent='0';
+    document.getElementById('step-num').textContent='0';
+    buildBars(ORIGINAL, {});
+    document.getElementById('info-box').innerHTML='Press <strong>Play</strong> to visualize Quick Sort with pivot partitioning.';
+  }
+
+  function init() { if(!steps.length){ cmpCount=0; swapCount=0; arr=[...ORIGINAL]; steps=buildSteps(arr); stepIdx=0; } }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  document.getElementById('btn-step').addEventListener('click', () => {
+    clearTimeout(playTimer); playing=false; document.getElementById('btn-play').textContent='▶ Play';
+    init(); if(stepIdx<steps.length) renderStep(steps[stepIdx++]);
+  });
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if(playing){ clearTimeout(playTimer); playing=false; document.getElementById('btn-play').textContent='▶ Play'; return; }
+    if(!steps.length||stepIdx>=steps.length){ reset(); init(); }
+    playing=true; document.getElementById('btn-play').textContent='⏸ Pause';
+    function next() {
+      if(!playing){ document.getElementById('btn-play').textContent='▶ Play'; return; }
+      if(stepIdx>=steps.length){
+        if(looping){ playTimer=setTimeout(()=>{ reset(); init(); playing=true; document.getElementById('btn-play').textContent='⏸ Pause'; next(); },1400); }
+        else{ playing=false; document.getElementById('btn-play').textContent='▶ Play'; }
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer=setTimeout(next,600);
+    }
+    next();
+  });
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping=!looping;
+    document.getElementById('btn-loop').textContent=looping?'↻ Loop: On':'↻ Loop: Off';
+    document.getElementById('btn-loop').classList.toggle('primary',looping);
+  });
+  reset();
+</script>
+</body>
+</html>

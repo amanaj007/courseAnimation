@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Merge Sort — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .merge-stage { display:flex; flex-direction:column; gap:0.6rem; width:100%; align-items:center; }
+    .level-row { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; align-items:flex-end; }
+    .merge-group { display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .merge-label { font-size:0.65rem; color:var(--text-muted); }
+    .merge-cells { display:flex; gap:3px; }
+    .mcell { width:38px; height:38px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+      font-size:0.85rem; font-weight:700; border:2px solid var(--border); background:var(--surface2); color:var(--text); }
+    .mcell.comparing { border-color:#ffd700; background:rgba(255,215,0,0.12); color:#ffd700; }
+    .mcell.merged    { border-color:#43e97b; background:rgba(67,233,123,0.12); color:#43e97b; }
+    .mcell.pivot     { border-color:#6c63ff; background:rgba(108,99,255,0.12); color:#a09cf7; }
+    .phase-label { font-size:0.8rem; color:var(--accent); font-weight:600; margin-bottom:0.25rem; }
+    .complexity { display:flex; gap:1.5rem; margin-top:0.75rem; justify-content:center; flex-wrap:wrap; }
+    .cmp-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.35rem 0.9rem; font-size:0.8rem; color:var(--text-muted); }
+    .cmp-chip strong { color:var(--text); }
+    @media (max-width: 480px) {
+      .mcell { width:28px; height:28px; font-size:0.72rem; border-radius:5px; }
+      .merge-cells { gap:2px; }
+      .level-row { gap:0.5rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Merge Sort</h1>
+  <p class="subtitle">Divide & Conquer · O(n log n) · Stable sort</p>
+  <div class="stage" style="flex-direction:column; gap:0.5rem; min-height:320px;">
+    <div class="phase-label" id="phase-label">Divide Phase</div>
+    <div id="merge-stage" class="merge-stage"></div>
+  </div>
+  <div class="complexity">
+    <div class="cmp-chip">Step: <strong id="step-num">0</strong></div>
+    <div class="cmp-chip">Comparisons: <strong id="cmp-count">0</strong></div>
+    <div class="cmp-chip">Phase: <strong id="phase-text">—</strong></div>
+  </div>
+  <div class="controls">
+    <button class="btn primary" id="btn-play">▶ Play</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Play</strong> to watch merge sort divide and conquer.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const ORIGINAL = [38, 27, 43, 3, 9, 82, 10, 56];
+  let steps = [], stepIdx = 0, playing = false, playTimer = null, looping = false, cmpCount = 0;
+
+  function buildSteps() {
+    const s = [];
+    function mergeSort(arr, depth, offset) {
+      if (arr.length <= 1) return arr;
+      const mid = Math.floor(arr.length / 2);
+      const left  = arr.slice(0, mid);
+      const right = arr.slice(mid);
+      s.push({ type:'divide', arr:[...arr], depth, offset, mid, label:`Split [${arr.join(',')}]` });
+      const sortedLeft  = mergeSort(left,  depth+1, offset);
+      const sortedRight = mergeSort(right, depth+1, offset+mid);
+      // merge
+      const merged = [];
+      let i=0, j=0;
+      while (i < sortedLeft.length && j < sortedRight.length) {
+        s.push({ type:'compare', left:sortedLeft, right:sortedRight, i, j, depth, offset,
+          label:`Compare ${sortedLeft[i]} vs ${sortedRight[j]}` });
+        if (sortedLeft[i] <= sortedRight[j]) merged.push(sortedLeft[i++]);
+        else merged.push(sortedRight[j++]);
+      }
+      while (i < sortedLeft.length) merged.push(sortedLeft[i++]);
+      while (j < sortedRight.length) merged.push(sortedRight[j++]);
+      s.push({ type:'merge', merged:[...merged], depth, offset, label:`Merged → [${merged.join(',')}]` });
+      return merged;
+    }
+    mergeSort([...ORIGINAL], 0, 0);
+    s.push({ type:'done', arr:[...ORIGINAL].sort((a,b)=>a-b) });
+    return s;
+  }
+
+  // track current state of each level
+  let levelState = {}; // depth -> array of values
+  function initLevels() {
+    levelState = {};
+    ORIGINAL.forEach((v,i) => { levelState[`${3}-${i}`] = { val:v, state:'default' }; });
+    renderAll([ORIGINAL], 'default');
+  }
+
+  function renderAll(levels, _) {
+    const stage = document.getElementById('merge-stage');
+    stage.innerHTML = '';
+    // show original row always
+    const row = document.createElement('div'); row.className = 'level-row';
+    const grp = document.createElement('div'); grp.className = 'merge-group';
+    const lbl = document.createElement('div'); lbl.className = 'merge-label'; lbl.textContent = 'Input';
+    const cells = document.createElement('div'); cells.className = 'merge-cells';
+    ORIGINAL.forEach(v => {
+      const c = document.createElement('div'); c.className = 'mcell'; c.textContent = v;
+      cells.appendChild(c);
+    });
+    grp.appendChild(lbl); grp.appendChild(cells);
+    row.appendChild(grp); stage.appendChild(row);
+  }
+
+  function renderStep(s) {
+    const stage = document.getElementById('merge-stage');
+    stage.innerHTML = '';
+    const infoBox = document.getElementById('info-box');
+    document.getElementById('step-num').textContent = stepIdx;
+
+    if (s.type === 'divide') {
+      document.getElementById('phase-label').textContent = '📤 Divide Phase';
+      document.getElementById('phase-text').textContent = 'Divide';
+      infoBox.innerHTML = `<strong>Divide:</strong> Split [${s.arr.join(', ')}] into [${s.arr.slice(0,s.mid).join(',')}] and [${s.arr.slice(s.mid).join(',')}]`;
+      const row = document.createElement('div'); row.className = 'level-row';
+      [s.arr.slice(0,s.mid), s.arr.slice(s.mid)].forEach((part, pi) => {
+        const grp = document.createElement('div'); grp.className = 'merge-group';
+        const lbl = document.createElement('div'); lbl.className = 'merge-label';
+        lbl.textContent = pi===0?'Left':'Right';
+        const cells = document.createElement('div'); cells.className = 'merge-cells';
+        part.forEach(v => {
+          const c = document.createElement('div'); c.className = 'mcell pivot'; c.textContent = v;
+          cells.appendChild(c); gsap.from(c, { scale:0.8, opacity:0, duration:0.25 });
+        });
+        grp.appendChild(lbl); grp.appendChild(cells); row.appendChild(grp);
+      });
+      stage.appendChild(row);
+      // also show original
+      const orig = document.createElement('div'); orig.className = 'level-row';
+      const og = document.createElement('div'); og.className = 'merge-group';
+      const ol = document.createElement('div'); ol.className = 'merge-label'; ol.textContent = 'Original';
+      const oc = document.createElement('div'); oc.className = 'merge-cells';
+      ORIGINAL.forEach(v => { const c = document.createElement('div'); c.className='mcell'; c.textContent=v; oc.appendChild(c); });
+      og.appendChild(ol); og.appendChild(oc); orig.appendChild(og); stage.insertBefore(orig, stage.firstChild);
+    } else if (s.type === 'compare') {
+      cmpCount++;
+      document.getElementById('cmp-count').textContent = cmpCount;
+      document.getElementById('phase-label').textContent = '🔀 Merge Phase';
+      document.getElementById('phase-text').textContent = 'Merge';
+      infoBox.innerHTML = `<strong>Compare:</strong> <strong style="color:#ffd700">${s.left[s.i]}</strong> vs <strong style="color:#ff6584">${s.right[s.j]}</strong> — ${s.left[s.i]<=s.right[s.j]?s.left[s.i]+' wins':''+s.right[s.j]+' wins'}`;
+      const row = document.createElement('div'); row.className = 'level-row';
+      [{ arr:s.left, lbl:'Left', hi:s.i }, { arr:s.right, lbl:'Right', hi:s.j }].forEach(({arr,lbl,hi}) => {
+        const grp = document.createElement('div'); grp.className = 'merge-group';
+        const gl  = document.createElement('div'); gl.className = 'merge-label'; gl.textContent = lbl;
+        const gc  = document.createElement('div'); gc.className = 'merge-cells';
+        arr.forEach((v,i) => {
+          const c = document.createElement('div');
+          c.className = 'mcell' + (i===hi?' comparing':'');
+          c.textContent = v;
+          gc.appendChild(c);
+        });
+        grp.appendChild(gl); grp.appendChild(gc); row.appendChild(grp);
+      });
+      stage.appendChild(row);
+    } else if (s.type === 'merge') {
+      document.getElementById('phase-label').textContent = '✅ Merged';
+      document.getElementById('phase-text').textContent = 'Merge';
+      infoBox.innerHTML = `<strong>Merged result:</strong> [${s.merged.join(', ')}]`;
+      const row = document.createElement('div'); row.className = 'level-row';
+      const grp = document.createElement('div'); grp.className = 'merge-group';
+      const gl  = document.createElement('div'); gl.className = 'merge-label'; gl.textContent = 'Sorted';
+      const gc  = document.createElement('div'); gc.className = 'merge-cells';
+      s.merged.forEach(v => {
+        const c = document.createElement('div'); c.className = 'mcell merged'; c.textContent = v;
+        gc.appendChild(c); gsap.from(c, { y:10, opacity:0, duration:0.2 });
+      });
+      grp.appendChild(gl); grp.appendChild(gc); row.appendChild(grp); stage.appendChild(row);
+    } else {
+      document.getElementById('phase-label').textContent = '🎉 Sort Complete!';
+      document.getElementById('phase-text').textContent = 'Done';
+      infoBox.innerHTML = `Merge Sort complete! Sorted: <strong>[${s.arr.join(', ')}]</strong> in ${cmpCount} comparisons.`;
+      const row = document.createElement('div'); row.className = 'level-row';
+      const grp = document.createElement('div'); grp.className = 'merge-group';
+      const gl  = document.createElement('div'); gl.className = 'merge-label'; gl.textContent = 'Final';
+      const gc  = document.createElement('div'); gc.className = 'merge-cells';
+      s.arr.forEach(v => {
+        const c = document.createElement('div'); c.className = 'mcell merged'; c.textContent = v;
+        gc.appendChild(c); gsap.from(c, { scale:0.8, opacity:0, duration:0.3, stagger:0.04 });
+      });
+      grp.appendChild(gl); grp.appendChild(gc); row.appendChild(grp); stage.appendChild(row);
+    }
+  }
+
+  function reset() {
+    clearTimeout(playTimer); playing = false; looping = false; stepIdx = 0; steps = []; cmpCount = 0;
+    document.getElementById('btn-play').textContent = '▶ Play';
+    document.getElementById('btn-loop').textContent = '↻ Loop: Off';
+    document.getElementById('btn-loop').classList.remove('primary');
+    document.getElementById('cmp-count').textContent = '0';
+    document.getElementById('step-num').textContent = '0';
+    document.getElementById('phase-label').textContent = 'Divide Phase';
+    document.getElementById('phase-text').textContent = '—';
+    initLevels();
+    document.getElementById('info-box').innerHTML = 'Press <strong>Play</strong> to watch merge sort divide and conquer.';
+  }
+
+  function init() { if (!steps.length) { steps = buildSteps(); stepIdx = 0; } }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  document.getElementById('btn-step').addEventListener('click', () => {
+    clearTimeout(playTimer); playing = false;
+    document.getElementById('btn-play').textContent = '▶ Play';
+    init();
+    if (stepIdx < steps.length) renderStep(steps[stepIdx++]);
+  });
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if (playing) { clearTimeout(playTimer); playing = false; document.getElementById('btn-play').textContent = '▶ Play'; return; }
+    if (!steps.length || stepIdx >= steps.length) { reset(); init(); }
+    playing = true; document.getElementById('btn-play').textContent = '⏸ Pause';
+    function next() {
+      if (!playing) { document.getElementById('btn-play').textContent = '▶ Play'; return; }
+      if (stepIdx >= steps.length) {
+        if (looping) { playTimer = setTimeout(() => { reset(); init(); playing=true; document.getElementById('btn-play').textContent='⏸ Pause'; next(); }, 1500); }
+        else { playing = false; document.getElementById('btn-play').textContent = '▶ Play'; }
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer = setTimeout(next, 700);
+    }
+    next();
+  });
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+  });
+
+  reset();
+</script>
+</body>
+</html>

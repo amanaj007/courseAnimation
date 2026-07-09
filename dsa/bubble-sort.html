@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bubble Sort — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .bars-wrapper { display: flex; align-items: flex-end; gap: 6px; height: 220px; justify-content: center; width: 100%; }
+    .bar {
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      border-radius: 8px 8px 4px 4px; position: relative; min-width: 38px;
+      transition: background 0.2s;
+    }
+    .bar-label { font-size: 0.75rem; font-weight: 700; color: var(--text); padding: 4px 0; }
+    .bar-idx   { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
+    .complexity { display:flex; gap:1.5rem; margin-top:1rem; justify-content:center; flex-wrap:wrap; }
+    .cmp-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+                padding:0.35rem 0.9rem; font-size:0.8rem; color:var(--text-muted); }
+    .cmp-chip strong { color:var(--text); }
+    @media (max-width: 480px) {
+      .bars-wrapper { gap:3px; height:160px; }
+      .bar { min-width:22px; }
+      .bar-label { font-size:0.62rem; }
+      .bar-idx   { font-size:0.55rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul>
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="bubble-sort.html">Bubble Sort</a></li>
+  </ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Bubble Sort</h1>
+  <p class="subtitle">Repeatedly swap adjacent elements · O(n²) time</p>
+
+  <div class="stage" style="flex-direction:column; gap:1rem;">
+    <div class="bars-wrapper" id="bars-wrapper"></div>
+    <div class="step-counter" id="step-counter" style="font-size:0.85rem;color:var(--text-muted);">Press Play to start</div>
+  </div>
+
+  <div class="complexity">
+    <div class="cmp-chip">Comparisons: <strong id="cmp-count">0</strong></div>
+    <div class="cmp-chip">Swaps: <strong id="swap-count">0</strong></div>
+    <div class="cmp-chip">Pass: <strong id="pass-count">0</strong></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-play">▶ Play</button>
+    <button class="btn" id="btn-step">Step →</button>
+    <button class="btn" id="btn-loop">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Press <strong>Play</strong> or <strong>Step</strong> to start sorting.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const ORIGINAL = [64, 34, 25, 12, 22, 11, 90, 47, 58, 73];
+  const COLORS = { default:'#242736', comparing:'#6c63ff', swapping:'#ff6584', sorted:'#43e97b' };
+  let arr, steps, stepIdx, playing, playTimer, cmpCount, swapCount;
+  let looping = false;
+
+  function buildSteps(a) {
+    const s = [], arr = [...a];
+    const n = arr.length;
+    for (let i = 0; i < n - 1; i++) {
+      for (let j = 0; j < n - i - 1; j++) {
+        s.push({ type:'compare', i:j, j:j+1, pass:i+1, arr:[...arr], sortedFrom: n-i });
+        if (arr[j] > arr[j+1]) {
+          [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
+          s.push({ type:'swap', i:j, j:j+1, pass:i+1, arr:[...arr], sortedFrom: n-i });
+        }
+      }
+    }
+    s.push({ type:'done', arr:[...arr], sortedFrom:0 });
+    return s;
+  }
+
+  function buildBars(a) {
+    const w = document.getElementById('bars-wrapper');
+    w.innerHTML = '';
+    const max = Math.max(...a);
+    a.forEach((v, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.id = `bar-${i}`;
+      bar.style.height = `${(v / max) * 190}px`;
+      bar.style.background = COLORS.default;
+      bar.style.flex = '1';
+      bar.innerHTML = `<span class="bar-label">${v}</span>`;
+      const idx = document.createElement('div');
+      idx.className = 'bar-idx'; idx.textContent = i;
+      w.appendChild(bar);
+      w.appendChild(idx);
+    });
+  }
+
+  function renderStep(s) {
+    arr = [...s.arr];
+    const max = Math.max(...ORIGINAL);
+    arr.forEach((v, i) => {
+      const bar = document.getElementById(`bar-${i}`);
+      if (!bar) return;
+      let color = COLORS.default;
+      if (s.type === 'done' || i >= (s.sortedFrom ?? arr.length)) color = COLORS.sorted;
+      if (s.type !== 'done' && (i === s.i || i === s.j)) color = s.type === 'swap' ? COLORS.swapping : COLORS.comparing;
+      bar.style.background = color;
+      bar.querySelector('.bar-label').textContent = v;
+      gsap.to(bar, { height: `${(v / max) * 190}px`, duration: 0.3, ease:'power2.out' });
+    });
+
+    if (s.type === 'compare') {
+      cmpCount++;
+      document.getElementById('cmp-count').textContent = cmpCount;
+      document.getElementById('step-counter').textContent = `Pass ${s.pass} · Comparing indices ${s.i} and ${s.j}`;
+      document.getElementById('info-box').innerHTML = `Comparing <strong>${s.arr[s.i]}</strong> and <strong>${s.arr[s.j]}</strong> — ${s.arr[s.i] > s.arr[s.j] ? '⬆ Swap needed!' : '✓ In order, no swap.'}`;
+    } else if (s.type === 'swap') {
+      swapCount++;
+      document.getElementById('swap-count').textContent = swapCount;
+      document.getElementById('step-counter').textContent = `Pass ${s.pass} · Swapped!`;
+      document.getElementById('info-box').innerHTML = `Swapped <strong>${ORIGINAL[s.i]}</strong> ↔ values at indices ${s.i} & ${s.j}.`;
+      gsap.fromTo(`#bar-${s.i}, #bar-${s.j}`, { x: 0 }, { x: 4, duration: 0.05, yoyo:true, repeat:3 });
+    } else {
+      document.getElementById('step-counter').textContent = 'Sorted! ✅';
+      document.getElementById('info-box').innerHTML = `Array fully sorted in <strong>${cmpCount}</strong> comparisons and <strong>${swapCount}</strong> swaps.`;
+      arr.forEach((_, i) => { const b = document.getElementById(`bar-${i}`); if(b) b.style.background = COLORS.sorted; });
+    }
+    document.getElementById('pass-count').textContent = s.pass ?? document.getElementById('pass-count').textContent;
+  }
+
+  function reset() {
+    clearTimeout(playTimer); playing = false; stepIdx = 0; steps = []; cmpCount = 0; swapCount = 0;
+    document.getElementById('btn-play').textContent = '▶ Play';
+    document.getElementById('cmp-count').textContent = '0';
+    document.getElementById('swap-count').textContent = '0';
+    document.getElementById('pass-count').textContent = '0';
+    document.getElementById('step-counter').textContent = 'Press Play to start';
+    document.getElementById('info-box').innerHTML = 'Press <strong>Play</strong> or <strong>Step</strong> to start sorting.';
+    arr = [...ORIGINAL];
+    buildBars(arr);
+  }
+
+  function init() { if (!steps.length) { arr = [...ORIGINAL]; steps = buildSteps(arr); stepIdx = 0; } }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  document.getElementById('btn-step').addEventListener('click', () => {
+    clearTimeout(playTimer); playing = false;
+    document.getElementById('btn-play').textContent = '▶ Play';
+    init();
+    if (stepIdx < steps.length) { renderStep(steps[stepIdx++]); }
+  });
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if (playing) { clearTimeout(playTimer); playing = false; document.getElementById('btn-play').textContent = '▶ Play'; return; }
+    if (!steps.length || stepIdx >= steps.length) { reset(); init(); }
+    playing = true;
+    document.getElementById('btn-play').textContent = '⏸ Pause';
+    function next() {
+      if (!playing) { document.getElementById('btn-play').textContent = '▶ Play'; return; }
+      if (stepIdx >= steps.length) {
+        if (looping) { playTimer = setTimeout(() => { reset(); init(); next(); }, 1200); }
+        else { playing = false; document.getElementById('btn-play').textContent = '▶ Play'; }
+        return;
+      }
+      renderStep(steps[stepIdx++]);
+      playTimer = setTimeout(next, 500);
+    }
+    next();
+  });
+
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    looping = !looping;
+    const btn = document.getElementById('btn-loop');
+    btn.textContent = looping ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', looping);
+  });
+
+  reset();
+</script>
+</body>
+</html>

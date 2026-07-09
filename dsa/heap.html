@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heap — DSA Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #heap-svg { width:100%; overflow:visible; }
+    .heap-array { display:flex; gap:4px; justify-content:center; margin-top:0.5rem; flex-wrap:wrap; }
+    .harr-cell { width:42px; height:42px; border-radius:8px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; border:2px solid var(--border);
+      background:var(--surface2); font-size:0.9rem; font-weight:700; position:relative; }
+    .harr-cell .hidx { position:absolute; bottom:-18px; font-size:0.6rem; color:var(--text-muted); }
+    .harr-cell.highlight { border-color:#ffd700; background:rgba(255,215,0,0.15); color:#ffd700; }
+    .harr-cell.swap      { border-color:#ff6584; background:rgba(255,101,132,0.15); color:#ff6584; }
+    .harr-cell.root      { border-color:#43e97b; background:rgba(67,233,123,0.15); color:#43e97b; }
+    .mode-btns { display:flex; gap:0.5rem; justify-content:center; margin-bottom:0.75rem; }
+    .mode-btn { padding:0.4rem 1.1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.85rem; cursor:pointer; transition:all 0.2s; }
+    .mode-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+    .val-row { display:flex; gap:0.5rem; align-items:center; justify-content:center; margin-top:0.75rem; flex-wrap:wrap; }
+    .val-row input { width:70px; padding:0.4rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text); font-size:0.9rem; text-align:center; }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #heap-svg { min-width:360px; }
+      .harr-cell { width:34px; height:34px; font-size:0.8rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Heap (Min / Max)</h1>
+  <p class="subtitle">Complete binary tree · O(log n) insert & extract · Array-backed</p>
+  <div class="mode-btns">
+    <button class="mode-btn active" data-mode="min">Min Heap</button>
+    <button class="mode-btn" data-mode="max">Max Heap</button>
+  </div>
+  <div class="stage" style="flex-direction:column; gap:0.5rem; min-height:280px;">
+    <svg id="heap-svg" viewBox="0 0 700 200" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="heap-array" id="heap-array"></div>
+  </div>
+  <div class="val-row">
+    <label style="color:var(--text-muted);font-size:0.9rem;">Value:</label>
+    <input type="number" id="heap-val" value="15" min="1" max="99"/>
+    <button class="btn primary" id="btn-insert">Insert</button>
+    <button class="btn" id="btn-extract">Extract Root</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Insert values to build the heap. Extract Root removes the min (or max) element.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS  = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('heap-svg');
+  let heap = [], mode = 'min', busy = false;
+
+  function cmp(a, b) { return mode==='min' ? a < b : a > b; }
+
+  function heapifyUp(i) {
+    const seq = [];
+    while (i > 0) {
+      const p = Math.floor((i-1)/2);
+      if (cmp(heap[i], heap[p])) {
+        seq.push([i, p]);
+        [heap[i], heap[p]] = [heap[p], heap[i]];
+        i = p;
+      } else break;
+    }
+    return seq;
+  }
+
+  function heapifyDown(i) {
+    const n = heap.length, seq = [];
+    while (true) {
+      let best = i, l = 2*i+1, r = 2*i+2;
+      if (l < n && cmp(heap[l], heap[best])) best = l;
+      if (r < n && cmp(heap[r], heap[best])) best = r;
+      if (best !== i) { seq.push([i, best]); [heap[i], heap[best]] = [heap[best], heap[i]]; i = best; }
+      else break;
+    }
+    return seq;
+  }
+
+  // Node positions in SVG
+  const POS = [];
+  function computePos() {
+    POS.length = 0;
+    const n = heap.length;
+    for (let i = 0; i < Math.min(n, 15); i++) {
+      const depth = Math.floor(Math.log2(i+1));
+      const pos   = i - (Math.pow(2,depth)-1);
+      const total = Math.pow(2,depth);
+      const xGap  = 700 / (total+1);
+      POS.push({ x: xGap*(pos+1), y: 20+depth*55 });
+    }
+  }
+
+  function drawHeap(highlight=[], swapPair=[]) {
+    svg.innerHTML = '';
+    computePos();
+    // edges
+    heap.forEach((_, i) => {
+      if (i===0) return;
+      const p = Math.floor((i-1)/2);
+      if (POS[i] && POS[p]) {
+        const line = document.createElementNS(NS,'line');
+        line.setAttribute('x1',POS[p].x); line.setAttribute('y1',POS[p].y);
+        line.setAttribute('x2',POS[i].x); line.setAttribute('y2',POS[i].y);
+        line.setAttribute('stroke','#2e3148'); line.setAttribute('stroke-width','1.5');
+        svg.appendChild(line);
+      }
+    });
+    // nodes
+    heap.forEach((v, i) => {
+      if (!POS[i]) return;
+      const isSwap = swapPair.includes(i);
+      const isHL   = highlight.includes(i);
+      const isRoot = i===0;
+      const color  = isSwap?'#ff6584':isHL?'#ffd700':isRoot?'#43e97b':'#6c63ff';
+      const bg     = isSwap?'rgba(255,101,132,0.15)':isHL?'rgba(255,215,0,0.15)':isRoot?'rgba(67,233,123,0.12)':'rgba(108,99,255,0.1)';
+      const circ   = document.createElementNS(NS,'circle');
+      circ.setAttribute('cx',POS[i].x); circ.setAttribute('cy',POS[i].y); circ.setAttribute('r','20');
+      circ.setAttribute('fill',bg); circ.setAttribute('stroke',color); circ.setAttribute('stroke-width','2');
+      const text   = document.createElementNS(NS,'text');
+      text.setAttribute('x',POS[i].x); text.setAttribute('y',POS[i].y);
+      text.setAttribute('text-anchor','middle'); text.setAttribute('dominant-baseline','middle');
+      text.setAttribute('fill',color); text.setAttribute('font-size','12'); text.setAttribute('font-weight','700');
+      text.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
+      text.textContent = v;
+      svg.appendChild(circ); svg.appendChild(text);
+    });
+  }
+
+  function drawArray(highlight=[], swapPair=[]) {
+    const wrap = document.getElementById('heap-array');
+    wrap.innerHTML = '';
+    heap.forEach((v, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'harr-cell' + (swapPair.includes(i)?' swap':highlight.includes(i)?' highlight':i===0?' root':'');
+      cell.innerHTML = `${v}<span class="hidx">${i}</span>`;
+      wrap.appendChild(cell);
+    });
+  }
+
+  function animateSwaps(swaps, onDone) {
+    if (!swaps.length) { drawHeap(); drawArray(); busy=false; onDone&&onDone(); return; }
+    const [a, b] = swaps[0];
+    drawHeap([a,b],[a,b]); drawArray([a,b],[a,b]);
+    gsap.fromTo(svg.querySelectorAll('circle'), {scale:1},{scale:1,duration:0.3});
+    setTimeout(() => animateSwaps(swaps.slice(1), onDone), 500);
+  }
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); mode=btn.dataset.mode;
+      heap=[]; drawHeap(); drawArray();
+      document.getElementById('info-box').innerHTML=`Switched to <strong>${mode==='min'?'Min':'Max'} Heap</strong>. Insert values to begin.`;
+    });
+  });
+
+  document.getElementById('btn-insert').addEventListener('click', () => {
+    if (busy||heap.length>=15) { document.getElementById('info-box').innerHTML='Max 15 nodes for display.'; return; }
+    busy=true;
+    const v = parseInt(document.getElementById('heap-val').value)||1;
+    heap.push(v);
+    drawHeap([heap.length-1]); drawArray([heap.length-1]);
+    document.getElementById('info-box').innerHTML=`Inserted <strong>${v}</strong>. Heapifying up…`;
+    const swaps = heapifyUp(heap.length-1);
+    setTimeout(() => animateSwaps(swaps, () => {
+      document.getElementById('info-box').innerHTML=`<strong>${v}</strong> inserted. ${mode==='min'?'Min':'Max'}: <strong>${heap[0]}</strong>. Heap size: ${heap.length}`;
+    }), 300);
+  });
+
+  document.getElementById('btn-extract').addEventListener('click', () => {
+    if (busy||!heap.length) { document.getElementById('info-box').innerHTML='Heap is empty!'; return; }
+    busy=true;
+    const root=heap[0];
+    document.getElementById('info-box').innerHTML=`Extracting root <strong>${root}</strong>. Moving last to root, heapifying down…`;
+    heap[0]=heap.pop();
+    if (!heap.length) { drawHeap(); drawArray(); busy=false;
+      document.getElementById('info-box').innerHTML=`Extracted <strong>${root}</strong>. Heap empty.`; return; }
+    drawHeap([0]); drawArray([0]);
+    const swaps=heapifyDown(0);
+    setTimeout(() => animateSwaps(swaps, () => {
+      document.getElementById('info-box').innerHTML=`Extracted <strong>${root}</strong>. New ${mode==='min'?'min':'max'}: <strong>${heap[0]}</strong>. Heap size: ${heap.length}`;
+    }), 300);
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    busy=false; heap=[];
+    drawHeap(); drawArray();
+    document.getElementById('info-box').innerHTML='Insert values to build the heap. Extract Root removes the min (or max) element.';
+  });
+
+  // seed
+  [42,20,35,8,15,30,5].forEach(v=>{heap.push(v);heapifyUp(heap.length-1);});
+  drawHeap(); drawArray();
+</script>
+</body>
+</html>

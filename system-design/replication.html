@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Replication — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #rep-svg { width:100%; overflow:visible; }
+    .mode-row { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin-bottom:0.75rem; }
+    .mode-btn { padding:0.4rem 1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+    .mode-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+    .stats-row { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #rep-svg { min-width:400px; }
+      .mode-row { flex-wrap:wrap; gap:0.4rem; }
+      .mode-btn { font-size:0.75rem; padding:0.3rem 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Leader-Follower Replication</h1>
+  <p class="subtitle">Sync vs Async replication · Reads from followers · Writes to leader · Failover</p>
+
+  <div class="mode-row">
+    <button class="mode-btn active" data-mode="sync">Synchronous</button>
+    <button class="mode-btn" data-mode="async">Asynchronous</button>
+    <button class="mode-btn" data-mode="failover">Failover</button>
+  </div>
+
+  <div class="stage" style="min-height:260px; overflow:visible; flex-direction:column; gap:0.5rem;">
+    <svg id="rep-svg" viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">Writes: <strong id="stat-writes">0</strong></div>
+    <div class="stat-chip">Reads: <strong id="stat-reads">0</strong></div>
+    <div class="stat-chip">Replication lag: <strong id="stat-lag">0ms</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-write">✍ Write</button>
+    <button class="btn" id="btn-read">📖 Read</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Send writes to the leader and reads to followers. Switch modes to compare replication strategies.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('rep-svg');
+  let mode='sync', writes=0, reads=0, animating=false, autoOn=false, autoTimer=null;
+  let leaderFailed=false, nodeData=[0,0,0]; // data version per node
+
+  const NODES=[
+    {id:0,x:120,y:110,label:'Leader',role:'Primary',color:'#ffd700'},
+    {id:1,x:380,y:60, label:'Follower 1',role:'Replica',color:'#6c63ff'},
+    {id:2,x:380,y:160,label:'Follower 2',role:'Replica',color:'#ff6584'},
+  ];
+  const CLIENT={x:620,y:110};
+
+  function el(tag,attrs,text){
+    const e=document.createElementNS(NS,tag);
+    for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
+    if(text!==undefined)e.textContent=text;return e;
+  }
+
+  function drawBase(){
+    svg.innerHTML='';
+    const defs=el('defs',{});
+    const mk=el('marker',{id:'repar',markerWidth:'7',markerHeight:'7',refX:'5',refY:'3',orient:'auto'});
+    mk.appendChild(el('path',{d:'M0,0 L0,6 L7,3 z',fill:'#2e3148'}));
+    defs.appendChild(mk); svg.appendChild(defs);
+
+    // replication lines leader→followers
+    NODES.slice(1).forEach(f=>{
+      const leader=NODES[0];
+      const color=leaderFailed?'#ff6584':'#2e3148';
+      const dash=leaderFailed?'5 4':'none';
+      svg.appendChild(el('line',{x1:leader.x+50,y1:leader.y,x2:f.x-40,y2:f.y,
+        stroke:color,'stroke-width':'1.5','stroke-dasharray':dash,'marker-end':'url(#repar)'}));
+    });
+
+    // client lines to followers (reads)
+    NODES.slice(1).forEach(f=>{
+      svg.appendChild(el('line',{x1:CLIENT.x-20,y1:CLIENT.y,x2:f.x+40,y2:f.y,
+        stroke:'#2e3148','stroke-width':'1','stroke-dasharray':'4 3','marker-end':'url(#repar)'}));
+    });
+
+    // nodes
+    NODES.forEach((n,i)=>{
+      const failed=leaderFailed&&i===0;
+      const color=failed?'#ff6584':n.color;
+      svg.appendChild(el('rect',{x:n.x-50,y:n.y-35,width:100,height:70,rx:'10',
+        fill:'#1a1d27',stroke:color,'stroke-width':'2',id:`rep-node-${i}`}));
+      svg.appendChild(el('text',{x:n.x,y:n.y-14,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:color,'font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
+        (failed?'⚠ ':'')+n.label));
+      svg.appendChild(el('text',{x:n.x,y:n.y+4,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},failed?'FAILED':n.role));
+      svg.appendChild(el('text',{x:n.x,y:n.y+22,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:color,'font-size':'9','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
+        `v${nodeData[i]}`));
+    });
+
+    // client
+    svg.appendChild(el('rect',{x:CLIENT.x-20,y:CLIENT.y-25,width:80,height:50,rx:'8',
+      fill:'#1a1d27',stroke:'#2e3148','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:CLIENT.x+20,y:CLIENT.y,'text-anchor':'middle','dominant-baseline':'middle',
+      fill:'#e8eaf6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+
+    // mode label
+    const modeColors={sync:'#43e97b',async:'#ffd700',failover:'#ff6584'};
+    const modeDescs={sync:'Sync: write ACK after all replicas confirm',async:'Async: write ACK immediately, replicate later',failover:'Failover: leader failed → elect new leader'};
+    svg.appendChild(el('text',{x:380,y:210,'text-anchor':'middle',fill:modeColors[mode],'font-size':'10',
+      'font-family':"'Segoe UI',system-ui,sans-serif"},modeDescs[mode]));
+
+    // packets
+    svg.appendChild(el('circle',{id:'rep-pkt',cx:'-50',cy:'-50',r:'7',fill:'#ffd700',opacity:'0'}));
+    svg.appendChild(el('circle',{id:'rep-pkt2',cx:'-50',cy:'-50',r:'7',fill:'#6c63ff',opacity:'0'}));
+  }
+
+  function doWrite(){
+    if(animating)return;
+    if(leaderFailed){
+      document.getElementById('info-box').innerHTML='⚠ <strong>Leader failed!</strong> Cannot write. Switch to Failover mode or reset.';return;
+    }
+    animating=true; writes++; nodeData[0]++;
+    const pkt=document.getElementById('rep-pkt');
+    const pkt2=document.getElementById('rep-pkt2');
+    // client → leader
+    gsap.set(pkt,{attr:{cx:CLIENT.x,cy:CLIENT.y},opacity:1,fill:'#ffd700'});
+    gsap.to(pkt,{attr:{cx:NODES[0].x,cy:NODES[0].y},duration:0.4,ease:'power2.inOut',onComplete:()=>{
+      drawBase();
+      document.getElementById('stat-writes').textContent=writes;
+      if(mode==='sync'){
+        // replicate to both followers simultaneously, wait for ACK
+        let done=0;
+        NODES.slice(1).forEach((f,i)=>{
+          const clonePkt=pkt.cloneNode();
+          clonePkt.setAttribute('cx',NODES[0].x); clonePkt.setAttribute('cy',NODES[0].y);
+          clonePkt.setAttribute('fill','#6c63ff'); clonePkt.setAttribute('opacity','1'); clonePkt.setAttribute('r','6');
+          svg.appendChild(clonePkt);
+          gsap.to(clonePkt,{attr:{cx:f.x,cy:f.y},duration:0.45,delay:i*0.05,ease:'power2.inOut',onComplete:()=>{
+            nodeData[i+1]=nodeData[0]; clonePkt.remove(); done++;
+            if(done===NODES.length-1){
+              drawBase(); gsap.to(pkt,{opacity:0,duration:0.2});
+              document.getElementById('stat-lag').textContent='0ms (sync)';
+              document.getElementById('info-box').innerHTML=`✅ <strong>Sync write</strong>: Leader and all followers confirmed. v${nodeData[0]}. Client gets ACK only after all replicas confirm.`;
+              animating=false;
+            }
+          }});
+        });
+      } else {
+        // async: ACK immediately, replicate with delay
+        gsap.to(pkt,{opacity:0,duration:0.2});
+        document.getElementById('info-box').innerHTML=`✅ <strong>Async write ACK</strong>: Leader confirmed immediately. Replicating to followers in background…`;
+        animating=false;
+        setTimeout(()=>{
+          NODES.slice(1).forEach((f,i)=>{
+            nodeData[i+1]=nodeData[0];
+            const p2=pkt2.cloneNode(); p2.setAttribute('cx',NODES[0].x); p2.setAttribute('cy',NODES[0].y);
+            p2.setAttribute('fill','#6c63ff'); p2.setAttribute('opacity','1'); p2.setAttribute('r','6');
+            svg.appendChild(p2);
+            gsap.to(p2,{attr:{cx:f.x,cy:f.y},duration:0.4,delay:i*0.1,ease:'power2.inOut',onComplete:()=>{p2.remove();drawBase();}});
+          });
+          document.getElementById('stat-lag').textContent='~500ms (async)';
+          document.getElementById('info-box').innerHTML=`⚡ <strong>Async replication</strong> complete. Followers now at v${nodeData[0]}. Replication lag: ~500ms`;
+        },500);
+      }
+    }});
+  }
+
+  function doRead(){
+    if(animating)return;
+    reads++;
+    const target=leaderFailed?NODES[1]:NODES[Math.floor(Math.random()*2)+1];
+    const pkt=document.getElementById('rep-pkt');
+    gsap.set(pkt,{attr:{cx:CLIENT.x,cy:CLIENT.y},opacity:1,fill:'#a09cf7'});
+    gsap.to(pkt,{attr:{cx:target.x,cy:target.y},duration:0.4,ease:'power2.inOut',onComplete:()=>{
+      document.getElementById('stat-reads').textContent=reads;
+      document.getElementById('info-box').innerHTML=`📖 <strong>Read</strong> from ${target.label} (v${nodeData[target.id]})${nodeData[target.id]<nodeData[0]?' — <span style="color:#ffd700">⚠ Stale data (async lag)</span>':''}`;
+      gsap.to(pkt,{attr:{cx:CLIENT.x,cy:CLIENT.y},duration:0.35,delay:0.2,ease:'power2.inOut',onComplete:()=>{gsap.to(pkt,{opacity:0,duration:0.2});}});
+    }});
+  }
+
+  function doFailover(){
+    if(mode!=='failover')return;
+    leaderFailed=true;
+    NODES[1].label='New Leader'; NODES[1].role='Elected Leader'; NODES[1].color='#ffd700';
+    nodeData[1]=nodeData[0];
+    drawBase();
+    document.getElementById('info-box').innerHTML='⚠ <strong>Leader failed!</strong> Follower 1 elected as new leader. Writes now route to it.';
+    setTimeout(()=>{
+      NODES[0].label='Old Leader'; document.getElementById('btn-write').onclick=()=>{
+        animating=true; writes++; nodeData[1]++;
+        const pkt=document.getElementById('rep-pkt');
+        gsap.set(pkt,{attr:{cx:CLIENT.x,cy:CLIENT.y},opacity:1,fill:'#ffd700'});
+        gsap.to(pkt,{attr:{cx:NODES[1].x,cy:NODES[1].y},duration:0.4,ease:'power2.inOut',onComplete:()=>{
+          drawBase(); document.getElementById('stat-writes').textContent=writes;
+          gsap.to(pkt,{opacity:0,duration:0.2,onComplete:()=>{animating=false;}});
+          document.getElementById('info-box').innerHTML=`✅ Write to <strong>New Leader</strong> (v${nodeData[1]})`;
+        }});
+      };
+    },1000);
+  }
+
+  document.querySelectorAll('.mode-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); mode=btn.dataset.mode;
+      reset();
+      if(mode==='failover'){
+        document.getElementById('info-box').innerHTML='<strong>Failover mode:</strong> Click <em>Write</em> several times, then the leader will fail and Follower 1 will be elected.';
+        let failCount=0;
+        document.getElementById('btn-write').onclick=()=>{
+          failCount++;
+          if(failCount===4){doFailover();return;}
+          doWrite();
+          if(failCount===3)document.getElementById('info-box').innerHTML='⚠ Leader health degrading… one more write may trigger failure.';
+        };
+      } else {
+        document.getElementById('btn-write').onclick=doWrite;
+      }
+    });
+  });
+
+  function reset(){
+    clearInterval(autoTimer); autoOn=false; animating=false; leaderFailed=false;
+    writes=0; reads=0; nodeData=[0,0,0];
+    NODES[0]={id:0,x:120,y:110,label:'Leader',role:'Primary',color:'#ffd700'};
+    NODES[1]={id:1,x:380,y:60,label:'Follower 1',role:'Replica',color:'#6c63ff'};
+    NODES[2]={id:2,x:380,y:160,label:'Follower 2',role:'Replica',color:'#ff6584'};
+    document.getElementById('btn-auto').textContent='↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    document.getElementById('stat-writes').textContent='0';
+    document.getElementById('stat-reads').textContent='0';
+    document.getElementById('stat-lag').textContent='0ms';
+    document.getElementById('btn-write').onclick=doWrite;
+    drawBase();
+    document.getElementById('info-box').innerHTML='Send writes to the leader and reads to followers. Switch modes to compare replication strategies.';
+  }
+
+  document.getElementById('btn-write').addEventListener('click',doWrite);
+  document.getElementById('btn-read').addEventListener('click',doRead);
+  document.getElementById('btn-auto').addEventListener('click',()=>{
+    autoOn=!autoOn;
+    const btn=document.getElementById('btn-auto');
+    btn.textContent=autoOn?'↻ Loop: On':'↻ Loop: Off';
+    btn.classList.toggle('primary',autoOn);
+    if(autoOn) autoTimer=setInterval(()=>Math.random()<0.4?doWrite():doRead(),1200);
+    else clearInterval(autoTimer);
+  });
+  document.getElementById('btn-reset').addEventListener('click',reset);
+  drawBase();
+</script>
+</body>
+</html>

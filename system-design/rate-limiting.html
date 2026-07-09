@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rate Limiting — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #rl-svg { width:100%; overflow:visible; }
+    .algo-row { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin-bottom:0.75rem; }
+    .algo-btn { padding:0.4rem 1rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--surface2); color:var(--text-muted); font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+    .algo-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
+    .stats-row { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #rl-svg { min-width:420px; }
+      .algo-row { flex-wrap:wrap; gap:0.4rem; }
+      .algo-btn { font-size:0.75rem; padding:0.3rem 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>Rate Limiting</h1>
+  <p class="subtitle">Token Bucket · Leaky Bucket · Fixed Window · Sliding Window Counter</p>
+
+  <div class="algo-row">
+    <button class="algo-btn active" data-algo="token">Token Bucket</button>
+    <button class="algo-btn" data-algo="leaky">Leaky Bucket</button>
+    <button class="algo-btn" data-algo="fixed">Fixed Window</button>
+    <button class="algo-btn" data-algo="sliding">Sliding Window</button>
+  </div>
+
+  <div class="stage" style="min-height:260px; overflow:visible; flex-direction:column; gap:0.5rem;">
+    <svg id="rl-svg" viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip">Requests Allowed: <strong id="stat-allowed">0</strong></div>
+    <div class="stat-chip">Requests Denied: <strong id="stat-denied">0</strong></div>
+    <div class="stat-chip">Bucket/Window: <strong id="stat-bucket">—</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem;">
+    <button class="btn primary" id="btn-request">Send Request</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-refill">⟳ Refill/Tick</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Send requests to see how the rate limiter allows or denies them.</div>
+</div>
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS=document.getElementById('rl-svg').namespaceURI;
+  const svg=document.getElementById('rl-svg');
+  let algo='token', allowed=0, denied=0, animating=false, autoOn=false, autoTimer=null;
+
+  // Token Bucket state
+  const TB_CAP=8, TB_RATE=2; let tbTokens=TB_CAP;
+  // Leaky Bucket state
+  const LB_CAP=6, LB_RATE=1; let lbQueue=0, lbLeak=0;
+  // Fixed Window state
+  const FW_LIMIT=5, FW_WINDOW=10; let fwCount=0, fwTick=0;
+  // Sliding Window state
+  const SW_LIMIT=5; let swLog=[];
+
+  function el(tag,attrs,text){
+    const e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
+    if(text!==undefined)e.textContent=text;return e;
+  }
+
+  function drawTokenBucket(){
+    svg.innerHTML='';
+    const bx=280,by=30,bw=200,bh=160,cap=TB_CAP,tokens=tbTokens;
+    // bucket outline
+    svg.appendChild(el('rect',{x:bx,y:by,width:bw,height:bh,rx:'8',fill:'#1a1d27',stroke:'#6c63ff','stroke-width':'2'}));
+    // fill
+    const fillH=Math.round((tokens/cap)*bh);
+    svg.appendChild(el('rect',{x:bx+2,y:by+bh-fillH+2,width:bw-4,height:Math.max(fillH-4,0),rx:'4',fill:'rgba(108,99,255,0.3)'}));
+    // token circles
+    for(let i=0;i<tokens;i++){
+      const col=i%4,row=Math.floor(i/4);
+      svg.appendChild(el('circle',{cx:bx+30+col*45,cy:by+bh-25-row*40,r:'14',fill:'rgba(108,99,255,0.6)',stroke:'#6c63ff','stroke-width':'1.5'}));
+      svg.appendChild(el('text',{x:bx+30+col*45,y:by+bh-25-row*40,'text-anchor':'middle','dominant-baseline':'middle',fill:'#fff','font-size':'10','font-family':"'Segoe UI',system-ui,sans-serif"},'T'));
+    }
+    // label
+    svg.appendChild(el('text',{x:bx+bw/2,y:by-12,'text-anchor':'middle',fill:'#6c63ff','font-size':'12','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},`Token Bucket: ${tokens}/${cap} tokens`));
+    svg.appendChild(el('text',{x:bx+bw/2,y:by+bh+18,'text-anchor':'middle',fill:'#8b8fa8','font-size':'10','font-family':"'Segoe UI',system-ui,sans-serif"},`Refills +${TB_RATE} tokens/tick`));
+    // client arrow
+    svg.appendChild(el('text',{x:100,y:115,'text-anchor':'middle',fill:'#e8eaf6','font-size':'30'},'👤'));
+    svg.appendChild(el('text',{x:100,y:145,'text-anchor':'middle',fill:'#8b8fa8','font-size':'10','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+    svg.appendChild(el('line',{x1:130,y1:115,x2:270,y2:115,stroke:'#2e3148','stroke-width':'1.5','stroke-dasharray':'5 3'}));
+    // server
+    svg.appendChild(el('rect',{x:510,y:85,width:100,height:50,rx:'8',fill:'#1a1d27',stroke:'#43e97b','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:560,y:115,'text-anchor':'middle','dominant-baseline':'middle',fill:'#43e97b','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Server'));
+    svg.appendChild(el('line',{x1:480,y1:115,x2:510,y2:115,stroke:'#2e3148','stroke-width':'1.5','stroke-dasharray':'5 3'}));
+    svg.appendChild(el('circle',{id:'rl-pkt',cx:'-50',cy:'-50',r:'8',fill:'#ffd700',opacity:'0'}));
+    document.getElementById('stat-bucket').textContent=`${tokens}/${cap} tokens`;
+  }
+
+  function drawLeakyBucket(){
+    svg.innerHTML='';
+    const bx=280,by=30,bw=200,bh=150,cap=LB_CAP,q=lbQueue;
+    svg.appendChild(el('rect',{x:bx,y:by,width:bw,height:bh,rx:'8',fill:'#1a1d27',stroke:'#ff6584','stroke-width':'2'}));
+    const fillH=Math.round((q/cap)*bh);
+    svg.appendChild(el('rect',{x:bx+2,y:by+bh-fillH+2,width:bw-4,height:Math.max(fillH-4,0),rx:'4',fill:'rgba(255,101,132,0.25)'}));
+    for(let i=0;i<q;i++){
+      const col=i%4,row=Math.floor(i/4);
+      svg.appendChild(el('circle',{cx:bx+30+col*45,cy:by+bh-25-row*38,r:'13',fill:'rgba(255,101,132,0.5)',stroke:'#ff6584','stroke-width':'1.5'}));
+      svg.appendChild(el('text',{x:bx+30+col*45,y:by+bh-25-row*38,'text-anchor':'middle','dominant-baseline':'middle',fill:'#fff','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},'Req'));
+    }
+    svg.appendChild(el('text',{x:bx+bw/2,y:by-12,'text-anchor':'middle',fill:'#ff6584','font-size':'12','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},`Leaky Bucket: ${q}/${cap} queued`));
+    svg.appendChild(el('text',{x:bx+bw/2,y:by+bh+18,'text-anchor':'middle',fill:'#8b8fa8','font-size':'10','font-family':"'Segoe UI',system-ui,sans-serif"},`Leaks ${LB_RATE} req/tick`));
+    // drip line
+    svg.appendChild(el('line',{x1:bx+bw/2,y1:by+bh,x2:bx+bw/2,y2:by+bh+10,stroke:'#ff6584','stroke-width':'2','stroke-dasharray':'3 2'}));
+    svg.appendChild(el('text',{x:100,y:115,'text-anchor':'middle',fill:'#e8eaf6','font-size':'30'},'👤'));
+    svg.appendChild(el('rect',{x:510,y:85,width:100,height:50,rx:'8',fill:'#1a1d27',stroke:'#43e97b','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:560,y:115,'text-anchor':'middle','dominant-baseline':'middle',fill:'#43e97b','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Server'));
+    svg.appendChild(el('circle',{id:'rl-pkt',cx:'-50',cy:'-50',r:'8',fill:'#ffd700',opacity:'0'}));
+    document.getElementById('stat-bucket').textContent=`${q}/${cap} queued`;
+  }
+
+  function drawFixedWindow(){
+    svg.innerHTML='';
+    const ticks=FW_WINDOW,tick=fwTick%ticks;
+    const bx=160,by=50,cellW=28,cellH=60;
+    svg.appendChild(el('text',{x:bx+ticks*cellW/2,y:by-14,'text-anchor':'middle',fill:'#ffd700','font-size':'12','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
+      `Fixed Window: ${fwCount}/${FW_LIMIT} requests (window tick ${tick+1}/${ticks})`));
+    for(let i=0;i<ticks;i++){
+      const x=bx+i*cellW,isCurrent=(i===tick);
+      svg.appendChild(el('rect',{x,y:by,width:cellW,height:cellH,fill:isCurrent?'rgba(255,215,0,0.1)':'var(--surface2)',stroke:isCurrent?'#ffd700':'#2e3148','stroke-width':isCurrent?'2':'1'}));
+    }
+    // filled reqs
+    for(let i=0;i<Math.min(fwCount,FW_LIMIT);i++){
+      svg.appendChild(el('circle',{cx:bx+tick*cellW+cellW/2,cy:by+10+i*11,r:'4',fill:'#6c63ff'}));
+    }
+    svg.appendChild(el('text',{x:bx+ticks*cellW/2,y:by+cellH+18,'text-anchor':'middle',fill:'#8b8fa8','font-size':'10','font-family':"'Segoe UI',system-ui,sans-serif"},
+      `Resets every ${ticks} ticks · Limit: ${FW_LIMIT} req/window`));
+    svg.appendChild(el('text',{x:100,y:100,'text-anchor':'middle',fill:'#e8eaf6','font-size':'30'},'👤'));
+    svg.appendChild(el('rect',{x:560,y:70,width:100,height:50,rx:'8',fill:'#1a1d27',stroke:'#43e97b','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:610,y:100,'text-anchor':'middle','dominant-baseline':'middle',fill:'#43e97b','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Server'));
+    svg.appendChild(el('circle',{id:'rl-pkt',cx:'-50',cy:'-50',r:'8',fill:'#ffd700',opacity:'0'}));
+    document.getElementById('stat-bucket').textContent=`${fwCount}/${FW_LIMIT} in window`;
+  }
+
+  function drawSlidingWindow(){
+    svg.innerHTML='';
+    const now=Date.now(),window=10000;
+    const recent=swLog.filter(t=>now-t<window).length;
+    const bx=160,by=50,w=440,h=80;
+    svg.appendChild(el('rect',{x:bx,y:by,width:w,height:h,rx:'8',fill:'#1a1d27',stroke:'#43e97b','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:bx+w/2,y:by-14,'text-anchor':'middle',fill:'#43e97b','font-size':'12','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
+      `Sliding Window: ${recent}/${SW_LIMIT} requests in last 10s`));
+    swLog.forEach((t,i)=>{
+      const age=(now-t)/window;
+      const x=bx+10+(1-age)*(w-20);
+      const fade=1-age;
+      svg.appendChild(el('circle',{cx:x,cy:by+h/2,r:'12',fill:`rgba(67,233,123,${fade*0.5})`,stroke:`rgba(67,233,123,${fade})`,'stroke-width':'1.5'}));
+      svg.appendChild(el('text',{x,y:by+h/2,'text-anchor':'middle','dominant-baseline':'middle',fill:'#fff','font-size':'8','font-family':"'Segoe UI',system-ui,sans-serif"},i+1));
+    });
+    svg.appendChild(el('text',{x:bx+w/2,y:by+h+18,'text-anchor':'middle',fill:'#8b8fa8','font-size':'10','font-family':"'Segoe UI',system-ui,sans-serif"},'Requests fade out after 10s · Limit: 5 req/10s'));
+    svg.appendChild(el('text',{x:80,y:100,'text-anchor':'middle',fill:'#e8eaf6','font-size':'30'},'👤'));
+    svg.appendChild(el('rect',{x:640,y:70,width:80,height:50,rx:'8',fill:'#1a1d27',stroke:'#43e97b','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:680,y:100,'text-anchor':'middle','dominant-baseline':'middle',fill:'#43e97b','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Server'));
+    svg.appendChild(el('circle',{id:'rl-pkt',cx:'-50',cy:'-50',r:'8',fill:'#ffd700',opacity:'0'}));
+    document.getElementById('stat-bucket').textContent=`${recent}/${SW_LIMIT}`;
+  }
+
+  function draw(){ if(algo==='token')drawTokenBucket(); else if(algo==='leaky')drawLeakyBucket(); else if(algo==='fixed')drawFixedWindow(); else drawSlidingWindow(); }
+
+  function animateRequest(ok){
+    if(animating)return; animating=true;
+    const pkt=document.getElementById('rl-pkt');
+    if(!pkt){animating=false;return;}
+    const destX=algo==='fixed'?560:algo==='sliding'?640:510;
+    gsap.set(pkt,{attr:{cx:100,cy:100},opacity:1,fill:ok?'#43e97b':'#ff6584'});
+    gsap.to(pkt,{attr:{cx:ok?destX:-50,cy:100},duration:0.5,ease:'power2.inOut',
+      onComplete:()=>{gsap.to(pkt,{opacity:0,duration:0.3,onComplete:()=>{animating=false;}});}});
+  }
+
+  function sendRequest(){
+    if(animating)return;
+    let ok=false;
+    if(algo==='token'){
+      if(tbTokens>0){tbTokens--;ok=true;}
+      else document.getElementById('info-box').innerHTML='🚫 <strong>Rate Limited!</strong> No tokens available. Wait for refill.';
+    } else if(algo==='leaky'){
+      if(lbQueue<LB_CAP){lbQueue++;ok=true;}
+      else document.getElementById('info-box').innerHTML='🚫 <strong>Rate Limited!</strong> Leaky bucket is full.';
+    } else if(algo==='fixed'){
+      if(fwCount<FW_LIMIT){fwCount++;ok=true;}
+      else document.getElementById('info-box').innerHTML='🚫 <strong>Rate Limited!</strong> Fixed window limit reached.';
+    } else {
+      const now=Date.now();
+      swLog=swLog.filter(t=>now-t<10000);
+      if(swLog.length<SW_LIMIT){swLog.push(now);ok=true;}
+      else document.getElementById('info-box').innerHTML='🚫 <strong>Rate Limited!</strong> Sliding window limit reached.';
+    }
+    if(ok){allowed++;document.getElementById('info-box').innerHTML=`✅ <strong>Allowed!</strong> Request passed. Total allowed: ${allowed}`;}
+    else denied++;
+    document.getElementById('stat-allowed').textContent=allowed;
+    document.getElementById('stat-denied').textContent=denied;
+    draw(); animateRequest(ok);
+  }
+
+  function refill(){
+    if(algo==='token'){tbTokens=Math.min(TB_CAP,tbTokens+TB_RATE);document.getElementById('info-box').innerHTML=`Refilled +${TB_RATE} tokens. Now: ${tbTokens}/${TB_CAP}`;}
+    else if(algo==='leaky'){const drained=Math.min(lbQueue,LB_RATE);lbQueue-=drained;document.getElementById('info-box').innerHTML=`Leaked ${drained} req. Queue: ${lbQueue}/${LB_CAP}`;}
+    else if(algo==='fixed'){fwTick++;if(fwTick%FW_WINDOW===0){fwCount=0;document.getElementById('info-box').innerHTML='Window reset! Count=0';}else document.getElementById('info-box').innerHTML=`Tick ${fwTick}. Window: ${fwTick%FW_WINDOW+1}/${FW_WINDOW}`;}
+    else document.getElementById('info-box').innerHTML='Sliding window ages out old requests automatically.';
+    draw();
+  }
+
+  document.querySelectorAll('.algo-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.algo-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');algo=btn.dataset.algo;
+      clearInterval(autoTimer);autoOn=false;document.getElementById('btn-auto').textContent='↻ Loop: Off';
+      document.getElementById('btn-auto').classList.remove('primary');
+      allowed=0;denied=0;tbTokens=TB_CAP;lbQueue=0;fwCount=0;fwTick=0;swLog=[];
+      document.getElementById('stat-allowed').textContent='0';
+      document.getElementById('stat-denied').textContent='0';
+      draw();document.getElementById('info-box').innerHTML='Send requests to see how the rate limiter allows or denies them.';
+    });
+  });
+
+  document.getElementById('btn-request').addEventListener('click',sendRequest);
+  document.getElementById('btn-refill').addEventListener('click',refill);
+  document.getElementById('btn-auto').addEventListener('click',()=>{
+    autoOn=!autoOn;
+    const btn=document.getElementById('btn-auto');
+    btn.textContent=autoOn?'↻ Loop: On':'↻ Loop: Off';
+    btn.classList.toggle('primary',autoOn);
+    if(autoOn)autoTimer=setInterval(sendRequest,800);
+    else clearInterval(autoTimer);
+  });
+  document.getElementById('btn-reset').addEventListener('click',()=>{
+    clearInterval(autoTimer);autoOn=false;animating=false;
+    document.getElementById('btn-auto').textContent='↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    allowed=0;denied=0;tbTokens=TB_CAP;lbQueue=0;fwCount=0;fwTick=0;swLog=[];
+    document.getElementById('stat-allowed').textContent='0';
+    document.getElementById('stat-denied').textContent='0';
+    draw();document.getElementById('info-box').innerHTML='Send requests to see how the rate limiter allows or denies them.';
+  });
+
+  draw();
+</script>
+</body>
+</html>

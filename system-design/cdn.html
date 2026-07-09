@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CDN — System Design Animation</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    @media (max-width: 600px) {
+      .stage { overflow-x:auto; padding:0.75rem 0.5rem; }
+      #cdn-svg { min-width:420px; }
+    }
+  </style>
+  <style>
+    #cdn-svg { width:100%; overflow:visible; }
+    .stat-row-inline { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.75rem; }
+    .stat-chip { background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:0.35rem 0.9rem; font-size:0.8rem; color:var(--text-muted); }
+    .stat-chip strong { color:var(--text); }
+    .region-select { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; cursor:pointer; }
+    .asset-select { background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+      padding:0.4rem 0.75rem; border-radius:8px; font-size:0.9rem; cursor:pointer; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">Anim<span>Studio</span></div>
+  <ul><li><a href="../index.html">Home</a></li></ul>
+</nav>
+
+<div class="anim-page">
+  <a class="back-link" href="../index.html">← Back to Home</a>
+  <h1>CDN (Content Delivery Network)</h1>
+  <p class="subtitle">Edge servers serve cached content close to users · Origin fallback on miss</p>
+
+  <div class="stage" style="min-height:300px; overflow:visible;">
+    <svg id="cdn-svg" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="stat-row-inline">
+    <div class="stat-chip">CDN Hits: <strong id="cdn-hits">0</strong></div>
+    <div class="stat-chip">Origin Fetches: <strong id="cdn-misses">0</strong></div>
+    <div class="stat-chip">Avg Latency: <strong id="avg-latency">—</strong></div>
+  </div>
+
+  <div class="controls" style="margin-top:1rem; flex-wrap:wrap; gap:0.6rem;">
+    <label style="color:var(--text-muted);font-size:0.85rem;">User region:</label>
+    <select class="region-select" id="region-select">
+      <option value="0">🇺🇸 US East</option>
+      <option value="1">🇬🇧 Europe</option>
+      <option value="2">🇯🇵 Asia Pacific</option>
+    </select>
+    <label style="color:var(--text-muted);font-size:0.85rem;">Asset:</label>
+    <select class="asset-select" id="asset-select">
+      <option value="logo.png">logo.png</option>
+      <option value="app.js">app.js</option>
+      <option value="style.css">style.css</option>
+      <option value="video.mp4">video.mp4</option>
+    </select>
+    <button class="btn primary" id="btn-request">Request Asset</button>
+    <button class="btn" id="btn-auto">↻ Loop: Off</button>
+    <button class="btn" id="btn-reset">↺ Reset</button>
+  </div>
+  <div class="info-box" id="info-box">Select a user region and asset, then click <strong>Request Asset</strong>.</div>
+</div>
+
+<footer>Built with GSAP — Course Animations</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('cdn-svg');
+
+  const ORIGIN = { x:380, y:30, w:140, h:50, label:'Origin Server', sub:'datacenter' };
+  const EDGES = [
+    { id:0, label:'Edge US-East',   x:100, y:160, color:'#6c63ff', latencyHit:12,  latencyMiss:180 },
+    { id:1, label:'Edge EU-West',   x:380, y:180, color:'#ff6584', latencyHit:15,  latencyMiss:210 },
+    { id:2, label:'Edge AP-South',  x:650, y:160, color:'#43e97b', latencyHit:18,  latencyMiss:260 },
+  ];
+  const USERS = [
+    { x:60,  y:240, label:'US User',  edgeIdx:0 },
+    { x:340, y:250, label:'EU User',  edgeIdx:1 },
+    { x:700, y:240, label:'AP User',  edgeIdx:2 },
+  ];
+
+  // per-edge cache: set of assets cached
+  let edgeCache = [{}, {}, {}];
+  let cdnHits = 0, originFetches = 0, totalLatency = 0, totalRequests = 0;
+  let animating = false, autoOn = false, autoTimer = null;
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function drawBase() {
+    svg.innerHTML = '';
+    const defs = el('defs', {});
+    const mk = el('marker', { id:'cdar', markerWidth:'8', markerHeight:'8', refX:'6', refY:'3', orient:'auto' });
+    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#2e3148' }));
+    defs.appendChild(mk);
+    svg.appendChild(defs);
+
+    // origin → edges
+    EDGES.forEach(e => {
+      svg.appendChild(el('line', { x1:ORIGIN.x, y1:ORIGIN.y+ORIGIN.h, x2:e.x, y2:e.y-26,
+        stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#cdar)' }));
+    });
+
+    // Origin
+    svg.appendChild(el('rect', { x:ORIGIN.x-ORIGIN.w/2, y:ORIGIN.y, width:ORIGIN.w, height:ORIGIN.h,
+      rx:'10', fill:'#1a1d27', stroke:'#ffd700', 'stroke-width':'2' }));
+    svg.appendChild(el('text', { x:ORIGIN.x, y:ORIGIN.y+18, 'text-anchor':'middle', 'dominant-baseline':'middle',
+      fill:'#ffd700', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, ORIGIN.label));
+    svg.appendChild(el('text', { x:ORIGIN.x, y:ORIGIN.y+34, 'text-anchor':'middle', 'dominant-baseline':'middle',
+      fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, ORIGIN.sub));
+
+    // Edges
+    EDGES.forEach((edge, i) => {
+      const g = el('g', { id:`edge-g-${i}` });
+      g.appendChild(el('rect', { x:edge.x-65, y:edge.y-26, width:130, height:55, rx:'10',
+        fill:'#1a1d27', stroke:edge.color, 'stroke-width':'1.5', id:`edge-rect-${i}` }));
+      g.appendChild(el('text', { x:edge.x, y:edge.y-8, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:edge.color, 'font-size':'11', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, edge.label));
+      g.appendChild(el('text', { x:edge.x, y:edge.y+8, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`edge-cached-${i}` },
+        `cached: ${Object.keys(edgeCache[i]).join(', ') || 'none'}`));
+      svg.appendChild(g);
+
+      // edge → user
+      const user = USERS[i];
+      svg.appendChild(el('line', { x1:edge.x, y1:edge.y+30, x2:user.x, y2:user.y-16,
+        stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#cdar)' }));
+
+      // user node
+      svg.appendChild(el('circle', { cx:user.x, cy:user.y, r:'16', fill:'#1a1d27', stroke:'#2e3148', 'stroke-width':'1.5', id:`user-circle-${i}` }));
+      svg.appendChild(el('text', { x:user.x, y:user.y, 'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:'#e8eaf6', 'font-size':'14' }, '👤'));
+      svg.appendChild(el('text', { x:user.x, y:user.y+28, 'text-anchor':'middle',
+        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, user.label));
+    });
+
+    // packet
+    svg.appendChild(el('circle', { id:'cdn-pkt', cx:'-50', cy:'-50', r:'7', fill:'#ffd700', opacity:'0' }));
+    svg.appendChild(el('text', { id:'cdn-pkt-lbl', x:'-50', y:'-38', 'text-anchor':'middle',
+      fill:'#ffd700', 'font-size':'8', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif", opacity:'0' }, ''));
+  }
+
+  function updateEdgeLabel(idx) {
+    const lbl = document.getElementById(`edge-cached-${idx}`);
+    if (lbl) lbl.textContent = `cached: ${Object.keys(edgeCache[idx]).join(', ') || 'none'}`;
+  }
+
+  function requestAsset() {
+    if (animating) return;
+    animating = true;
+    const regionIdx = parseInt(document.getElementById('region-select').value);
+    const asset = document.getElementById('asset-select').value;
+    const edge = EDGES[regionIdx];
+    const user = USERS[regionIdx];
+    const pkt  = document.getElementById('cdn-pkt');
+    const lbl  = document.getElementById('cdn-pkt-lbl');
+    lbl.textContent = asset;
+
+    const isHit = !!edgeCache[regionIdx][asset];
+    const latency = isHit ? edge.latencyHit : edge.latencyMiss;
+
+    // user → edge
+    gsap.set(pkt, { attr:{ cx:user.x, cy:user.y }, opacity:1, fill:'#ffd700' });
+    gsap.set(lbl, { attr:{ x:user.x, y:user.y - 14 }, opacity:1 });
+
+    gsap.to([pkt, lbl], {
+      attr:{ cx:edge.x, cy:edge.y, x:edge.x, y:edge.y-14 }, duration:0.4, ease:'power2.inOut',
+      onComplete: () => {
+        if (isHit) {
+          // cache hit — serve directly
+          cdnHits++;
+          gsap.fromTo(`#edge-rect-${regionIdx}`, { attr:{ stroke:'#fff' } }, { attr:{ stroke:edge.color }, duration:0.4 });
+          gsap.set(pkt, { fill:'#43e97b' }); gsap.set(lbl, { attr:{ fill:'#43e97b' } });
+          gsap.to([pkt, lbl], {
+            attr:{ cx:user.x, cy:user.y, x:user.x, y:user.y-14 }, duration:0.4, delay:0.2, ease:'power2.inOut',
+            onComplete: () => {
+              gsap.to([pkt, lbl], { opacity:0, duration:0.3, onComplete: () => finish(latency, true, asset, regionIdx) });
+            }
+          });
+        } else {
+          // cache miss — go to origin
+          originFetches++;
+          gsap.set(pkt, { fill:'#ff6584' });
+          gsap.to([pkt, lbl], {
+            attr:{ cx:ORIGIN.x, cy:ORIGIN.y+25, x:ORIGIN.x, y:ORIGIN.y+11 }, duration:0.5, ease:'power2.inOut',
+            onComplete: () => {
+              edgeCache[regionIdx][asset] = true;
+              updateEdgeLabel(regionIdx);
+              // return via edge to user
+              gsap.set(pkt, { fill:'#ffd700' });
+              gsap.to([pkt, lbl], {
+                attr:{ cx:edge.x, cy:edge.y, x:edge.x, y:edge.y-14 }, duration:0.4, ease:'power2.inOut',
+                onComplete: () => {
+                  gsap.to([pkt, lbl], {
+                    attr:{ cx:user.x, cy:user.y, x:user.x, y:user.y-14 }, duration:0.4, ease:'power2.inOut',
+                    onComplete: () => {
+                      gsap.to([pkt, lbl], { opacity:0, duration:0.3, onComplete: () => finish(latency, false, asset, regionIdx) });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      }
+    });
+  }
+
+  function finish(latency, isHit, asset, regionIdx) {
+    totalLatency += latency; totalRequests++;
+    document.getElementById('cdn-hits').textContent    = cdnHits;
+    document.getElementById('cdn-misses').textContent  = originFetches;
+    document.getElementById('avg-latency').textContent = `${Math.round(totalLatency/totalRequests)}ms`;
+    document.getElementById('info-box').innerHTML = isHit
+      ? `✅ <strong>CDN HIT</strong> — <em>${asset}</em> served from <strong>${EDGES[regionIdx].label}</strong>. Latency: <strong>${latency}ms</strong>`
+      : `🌐 <strong>CDN MISS</strong> — fetched <em>${asset}</em> from Origin, cached at <strong>${EDGES[regionIdx].label}</strong>. Latency: <strong>${latency}ms</strong>`;
+    animating = false;
+  }
+
+  document.getElementById('btn-request').addEventListener('click', requestAsset);
+
+  document.getElementById('btn-auto').addEventListener('click', () => {
+    autoOn = !autoOn;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = autoOn ? '↻ Loop: On' : '↻ Loop: Off';
+    btn.classList.toggle('primary', autoOn);
+    if (autoOn) {
+      autoTimer = setInterval(() => {
+        const regions = ['0','1','2'];
+        const assets  = ['logo.png','app.js','style.css','video.mp4'];
+        document.getElementById('region-select').value = regions[Math.floor(Math.random()*3)];
+        document.getElementById('asset-select').value  = assets[Math.floor(Math.random()*4)];
+        requestAsset();
+      }, 1500);
+    } else { clearInterval(autoTimer); }
+  });
+
+  function reset() {
+    clearInterval(autoTimer); autoOn = false; animating = false;
+    document.getElementById('btn-auto').textContent = '↻ Loop: Off';
+    document.getElementById('btn-auto').classList.remove('primary');
+    edgeCache = [{},{},{}]; cdnHits = 0; originFetches = 0; totalLatency = 0; totalRequests = 0;
+    document.getElementById('cdn-hits').textContent   = '0';
+    document.getElementById('cdn-misses').textContent = '0';
+    document.getElementById('avg-latency').textContent = '—';
+    drawBase();
+    document.getElementById('info-box').innerHTML = 'Select a user region and asset, then click <strong>Request Asset</strong>.';
+  }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  drawBase();
+</script>
+</body>
+</html>
