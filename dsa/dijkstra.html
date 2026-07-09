@@ -109,26 +109,26 @@
   }
 
   function nodeColor(id, step) {
-    if (!step) return '#2e3148';
+    if (!step) return '#1a1d27';
     const vs=step.visited||[];
     if (step.node===id) return '#ffd700';
     if (step.neighbor===id && step.type==='update') return '#6c63ff';
     if (vs.includes(id)) return '#43e97b';
-    return '#2e3148';
+    return '#1a1d27';
   }
   function nodeStroke(id, step) {
-    if (!step) return '#2e3148';
+    if (!step) return '#555a7a';
     if (step.node===id) return '#ffd700';
     if (step.neighbor===id) return '#6c63ff';
     if ((step.visited||[]).includes(id)) return '#43e97b';
-    return '#2e3148';
+    return '#555a7a';
   }
   function nodeTextColor(id, step) {
-    if (!step) return '#e8eaf6';
+    if (!step) return '#b0b3c6';
     if (step.node===id) return '#ffd700';
     if (step.neighbor===id) return '#a09cf7';
     if ((step.visited||[]).includes(id)) return '#43e97b';
-    return '#e8eaf6';
+    return '#b0b3c6';
   }
 
   function pathEdges(prev) {
@@ -145,7 +145,7 @@
     const mk=document.createElementNS(NS,'marker');
     mk.setAttribute('id','dar'); mk.setAttribute('markerWidth','7'); mk.setAttribute('markerHeight','7');
     mk.setAttribute('refX','5'); mk.setAttribute('refY','3'); mk.setAttribute('orient','auto');
-    const pth=document.createElementNS(NS,'path'); pth.setAttribute('d','M0,0 L0,6 L7,3 z'); pth.setAttribute('fill','#2e3148');
+    const pth=document.createElementNS(NS,'path'); pth.setAttribute('d','M0,0 L0,6 L7,3 z'); pth.setAttribute('fill','#555a7a');
     mk.appendChild(pth); defs.appendChild(mk); svg.appendChild(defs);
 
     const pe = step ? pathEdges(step.prev||{}) : new Set();
@@ -154,7 +154,7 @@
       const na=NODES.find(n=>n.id===a), nb=NODES.find(n=>n.id===b);
       const isPath = pe.has(`${a}-${b}`) || pe.has(`${b}-${a}`);
       const isActive = step && ((step.node===a&&step.neighbor===b)||(step.node===b&&step.neighbor===a));
-      const color = isActive?'#ffd700':isPath?'#43e97b':'#2e3148';
+      const color = isActive?'#ffd700':isPath?'#43e97b':'#555a7a';
       const sw    = isActive||isPath?2.5:1.5;
       const dx=nb.x-na.x, dy=nb.y-na.y, len=Math.sqrt(dx*dx+dy*dy);
       const mx=(na.x+nb.x)/2, my=(na.y+nb.y)/2;
@@ -166,7 +166,7 @@
       const wlbl=document.createElementNS(NS,'text');
       wlbl.setAttribute('x',mx+(-dy/len)*12); wlbl.setAttribute('y',my+(dx/len)*12);
       wlbl.setAttribute('text-anchor','middle'); wlbl.setAttribute('dominant-baseline','middle');
-      wlbl.setAttribute('fill',isActive?'#ffd700':'#8b8fa8'); wlbl.setAttribute('font-size','10');
+      wlbl.setAttribute('fill',isActive?'#ffd700':'#b0b3c6'); wlbl.setAttribute('font-size','11');
       wlbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif"); wlbl.setAttribute('font-weight','700');
       wlbl.textContent=w; svg.appendChild(wlbl);
     });
@@ -179,13 +179,13 @@
       const txt=document.createElementNS(NS,'text');
       txt.setAttribute('x',n.x); txt.setAttribute('y',n.y-3);
       txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','middle');
-      txt.setAttribute('fill',tc); txt.setAttribute('font-size','13'); txt.setAttribute('font-weight','700');
+      txt.setAttribute('fill',tc); txt.setAttribute('font-size','14'); txt.setAttribute('font-weight','700');
       txt.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif"); txt.textContent=n.id;
       const d=step?step.dist[n.id]:INF;
       const dlbl=document.createElementNS(NS,'text');
       dlbl.setAttribute('x',n.x); dlbl.setAttribute('y',n.y+10);
-      dlbl.setAttribute('text-anchor','middle'); dlbl.setAttribute('fill','#8b8fa8');
-      dlbl.setAttribute('font-size','9'); dlbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
+      dlbl.setAttribute('text-anchor','middle'); dlbl.setAttribute('fill','#b0b3c6');
+      dlbl.setAttribute('font-size','10'); dlbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
       dlbl.textContent=d===INF?'∞':d;
       svg.appendChild(circ); svg.appendChild(txt); svg.appendChild(dlbl);
     });

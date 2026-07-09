@@ -92,7 +92,7 @@
   function renderTree(highlightVals = [], highlightColor = '#ffd700') {
     svg.innerHTML = '';
     if (!root) {
-      const t = el('text', { x:'50%', y:'60', 'text-anchor':'middle', fill:'#8b8fa8',
+      const t = el('text', { x:'50%', y:'60', 'text-anchor':'middle', fill:'#b0b3c6',
         'font-size':'14', 'font-family':"'Segoe UI',system-ui,sans-serif" });
       t.textContent = 'Tree is empty — insert a value';
       svg.appendChild(t);
@@ -110,8 +110,8 @@
     // edges first
     function drawEdges(node) {
       if (!node) return;
-      if (node.left)  { svg.appendChild(el('line', { x1:node.x, y1:node.y, x2:node.left.x, y2:node.left.y, stroke:'#2e3148', 'stroke-width':'2' })); }
-      if (node.right) { svg.appendChild(el('line', { x1:node.x, y1:node.y, x2:node.right.x, y2:node.right.y, stroke:'#2e3148', 'stroke-width':'2' })); }
+      if (node.left)  { svg.appendChild(el('line', { x1:node.x, y1:node.y, x2:node.left.x, y2:node.left.y, stroke:'#555a7a', 'stroke-width':'2' })); }
+      if (node.right) { svg.appendChild(el('line', { x1:node.x, y1:node.y, x2:node.right.x, y2:node.right.y, stroke:'#555a7a', 'stroke-width':'2' })); }
       drawEdges(node.left); drawEdges(node.right);
     }
     drawEdges(root);

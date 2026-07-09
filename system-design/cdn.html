@@ -98,14 +98,14 @@
     svg.innerHTML = '';
     const defs = el('defs', {});
     const mk = el('marker', { id:'cdar', markerWidth:'8', markerHeight:'8', refX:'6', refY:'3', orient:'auto' });
-    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#2e3148' }));
+    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#555a7a' }));
     defs.appendChild(mk);
     svg.appendChild(defs);
 
     // origin → edges
     EDGES.forEach(e => {
       svg.appendChild(el('line', { x1:ORIGIN.x, y1:ORIGIN.y+ORIGIN.h, x2:e.x, y2:e.y-26,
-        stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#cdar)' }));
+        stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#cdar)' }));
     });
 
     // Origin
@@ -114,7 +114,7 @@
     svg.appendChild(el('text', { x:ORIGIN.x, y:ORIGIN.y+18, 'text-anchor':'middle', 'dominant-baseline':'middle',
       fill:'#ffd700', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, ORIGIN.label));
     svg.appendChild(el('text', { x:ORIGIN.x, y:ORIGIN.y+34, 'text-anchor':'middle', 'dominant-baseline':'middle',
-      fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, ORIGIN.sub));
+      fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif" }, ORIGIN.sub));
 
     // Edges
     EDGES.forEach((edge, i) => {
@@ -124,21 +124,21 @@
       g.appendChild(el('text', { x:edge.x, y:edge.y-8, 'text-anchor':'middle', 'dominant-baseline':'middle',
         fill:edge.color, 'font-size':'11', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, edge.label));
       g.appendChild(el('text', { x:edge.x, y:edge.y+8, 'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`edge-cached-${i}` },
+        fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`edge-cached-${i}` },
         `cached: ${Object.keys(edgeCache[i]).join(', ') || 'none'}`));
       svg.appendChild(g);
 
       // edge → user
       const user = USERS[i];
       svg.appendChild(el('line', { x1:edge.x, y1:edge.y+30, x2:user.x, y2:user.y-16,
-        stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#cdar)' }));
+        stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#cdar)' }));
 
       // user node
-      svg.appendChild(el('circle', { cx:user.x, cy:user.y, r:'16', fill:'#1a1d27', stroke:'#2e3148', 'stroke-width':'1.5', id:`user-circle-${i}` }));
+      svg.appendChild(el('circle', { cx:user.x, cy:user.y, r:'16', fill:'#1a1d27', stroke:'#555a7a', 'stroke-width':'1.5', id:`user-circle-${i}` }));
       svg.appendChild(el('text', { x:user.x, y:user.y, 'text-anchor':'middle', 'dominant-baseline':'middle',
         fill:'#e8eaf6', 'font-size':'14' }, '👤'));
       svg.appendChild(el('text', { x:user.x, y:user.y+28, 'text-anchor':'middle',
-        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, user.label));
+        fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif" }, user.label));
     });
 
     // packet

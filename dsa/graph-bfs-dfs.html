@@ -103,10 +103,10 @@
   }
   function nodeStroke(id, state) {
     if (id === startNode) return '#ffd700';
-    return { default:'#2e3148', frontier:'#ffd700', visited:'#6c63ff', current:'#43e97b' }[state];
+    return { default:'#555a7a', frontier:'#ffd700', visited:'#6c63ff', current:'#43e97b' }[state];
   }
   function nodeTextColor(state) {
-    return { default:'#e8eaf6', frontier:'#ffd700', visited:'#a09cf7', current:'#43e97b' }[state];
+    return { default:'#b0b3c6', frontier:'#ffd700', visited:'#a09cf7', current:'#43e97b' }[state];
   }
 
   function drawGraph() {
@@ -119,7 +119,7 @@
     EDGES.forEach(([a,b]) => {
       const na = NODES[a], nb = NODES[b];
       svg.appendChild(el('line', { x1:na.x, y1:na.y, x2:nb.x, y2:nb.y,
-        stroke:'#2e3148', 'stroke-width':'2', id:`edge-${a}-${b}` }));
+        stroke:'#555a7a', 'stroke-width':'2', id:`edge-${a}-${b}` }));
     });
 
     // nodes
@@ -131,7 +131,7 @@
         id:`circle-${n.id}` }));
 
       const t = el('text', { x:n.x, y:n.y+1, 'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill: nodeTextColor(state), 'font-size':'14', 'font-weight':'700',
+        fill: nodeTextColor(state), 'font-size':'15', 'font-weight':'700',
         'font-family':"'Segoe UI',system-ui,sans-serif", 'pointer-events':'none' });
       t.textContent = n.label;
       g.appendChild(t);
@@ -139,7 +139,7 @@
       // start indicator
       if (n.id === startNode) {
         const st = el('text', { x:n.x, y:n.y-34, 'text-anchor':'middle', fill:'#ffd700',
-          'font-size':'9', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" });
+          'font-size':'10', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" });
         st.textContent = 'START';
         g.appendChild(st);
       }

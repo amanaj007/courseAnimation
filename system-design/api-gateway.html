@@ -88,11 +88,11 @@
     svg.innerHTML='';
 
     // Client
-    svg.appendChild(el('rect',{x:CLIENT.x-35,y:CLIENT.y-24,width:80,height:48,rx:'8',fill:'#1a1d27',stroke:'#2e3148','stroke-width':'1.5'}));
-    svg.appendChild(el('text',{x:CLIENT.x+5,y:CLIENT.y,'text-anchor':'middle','dominant-baseline':'middle',fill:'#e8eaf6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+    svg.appendChild(el('rect',{x:CLIENT.x-35,y:CLIENT.y-24,width:80,height:48,rx:'8',fill:'#1a1d27',stroke:'#555a7a','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:CLIENT.x+5,y:CLIENT.y,'text-anchor':'middle','dominant-baseline':'middle',fill:'#b0b3c6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
 
     // Arrow client → gateway
-    svg.appendChild(el('line',{x1:CLIENT.x+45,y1:CLIENT.y,x2:GW.x-95,y2:CLIENT.y,stroke:'#2e3148','stroke-width':'1.5'}));
+    svg.appendChild(el('line',{x1:CLIENT.x+45,y1:CLIENT.y,x2:GW.x-95,y2:CLIENT.y,stroke:'#555a7a','stroke-width':'1.5'}));
 
     // Gateway box
     svg.appendChild(el('rect',{x:GW.x-90,y:GW.y-80,width:180,height:165,rx:'12',fill:'#1a1d27',stroke:'#6c63ff','stroke-width':'2'}));
@@ -102,11 +102,11 @@
     GW_STEPS.forEach((step,i)=>{
       const isHL=highlightSteps.includes(i);
       const isBlocked=blockedAt===i;
-      const color=isBlocked?'#ff6584':isHL?step.color:'#2e3148';
+      const color=isBlocked?'#ff6584':isHL?step.color:'#555a7a';
       svg.appendChild(el('rect',{x:step.x-80,y:step.y-11,width:160,height:22,rx:'5',
         fill:`rgba(${isBlocked?'255,101,132':isHL?'108,99,255':'46,49,72'},${isHL||isBlocked?0.3:0.15})`,stroke:color,'stroke-width':'1.5'}));
       svg.appendChild(el('text',{x:step.x,y:step.y,'text-anchor':'middle','dominant-baseline':'middle',
-        fill:isBlocked?'#ff6584':isHL?step.color:'#8b8fa8','font-size':'9','font-weight':'700',
+        fill:isBlocked?'#ff6584':isHL?step.color:'#b0b3c6','font-size':'9','font-weight':'700',
         'font-family':"'Segoe UI',system-ui,sans-serif"},isBlocked?'🚫 '+step.label:step.label));
     });
 
@@ -114,11 +114,11 @@
     SERVICES.forEach(svc=>{
       const isActive=svc.id===activeService;
       svg.appendChild(el('line',{x1:GW.x+90,y1:GW.y,x2:svc.x-45,y2:svc.y,
-        stroke:isActive?svc.color:'#2e3148','stroke-width':isActive?2:1,'stroke-dasharray':isActive?'none':'4 3'}));
+        stroke:isActive?svc.color:'#555a7a','stroke-width':isActive?2:1,'stroke-dasharray':isActive?'none':'4 3'}));
       svg.appendChild(el('rect',{x:svc.x-45,y:svc.y-18,width:130,height:36,rx:'8',
-        fill:'#1a1d27',stroke:isActive?svc.color:'#2e3148','stroke-width':isActive?2:1.5}));
+        fill:'#1a1d27',stroke:isActive?svc.color:'#555a7a','stroke-width':isActive?2:1.5}));
       svg.appendChild(el('text',{x:svc.x+20,y:svc.y,'text-anchor':'middle','dominant-baseline':'middle',
-        fill:isActive?svc.color:'#8b8fa8','font-size':'10','font-weight':'700',
+        fill:isActive?svc.color:'#b0b3c6','font-size':'10','font-weight':'700',
         'font-family':"'Segoe UI',system-ui,sans-serif"},svc.label));
     });
 

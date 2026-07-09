@@ -81,13 +81,13 @@
     svg.innerHTML='';
     const defs=el('defs',{});
     const mk=el('marker',{id:'repar',markerWidth:'7',markerHeight:'7',refX:'5',refY:'3',orient:'auto'});
-    mk.appendChild(el('path',{d:'M0,0 L0,6 L7,3 z',fill:'#2e3148'}));
+    mk.appendChild(el('path',{d:'M0,0 L0,6 L7,3 z',fill:'#555a7a'}));
     defs.appendChild(mk); svg.appendChild(defs);
 
     // replication lines leader→followers
     NODES.slice(1).forEach(f=>{
       const leader=NODES[0];
-      const color=leaderFailed?'#ff6584':'#2e3148';
+      const color=leaderFailed?'#ff6584':'#555a7a';
       const dash=leaderFailed?'5 4':'none';
       svg.appendChild(el('line',{x1:leader.x+50,y1:leader.y,x2:f.x-40,y2:f.y,
         stroke:color,'stroke-width':'1.5','stroke-dasharray':dash,'marker-end':'url(#repar)'}));
@@ -96,7 +96,7 @@
     // client lines to followers (reads)
     NODES.slice(1).forEach(f=>{
       svg.appendChild(el('line',{x1:CLIENT.x-20,y1:CLIENT.y,x2:f.x+40,y2:f.y,
-        stroke:'#2e3148','stroke-width':'1','stroke-dasharray':'4 3','marker-end':'url(#repar)'}));
+        stroke:'#555a7a','stroke-width':'1','stroke-dasharray':'4 3','marker-end':'url(#repar)'}));
     });
 
     // nodes
@@ -109,7 +109,7 @@
         fill:color,'font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
         (failed?'⚠ ':'')+n.label));
       svg.appendChild(el('text',{x:n.x,y:n.y+4,'text-anchor':'middle','dominant-baseline':'middle',
-        fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},failed?'FAILED':n.role));
+        fill:'#b0b3c6','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},failed?'FAILED':n.role));
       svg.appendChild(el('text',{x:n.x,y:n.y+22,'text-anchor':'middle','dominant-baseline':'middle',
         fill:color,'font-size':'9','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},
         `v${nodeData[i]}`));
@@ -117,9 +117,9 @@
 
     // client
     svg.appendChild(el('rect',{x:CLIENT.x-20,y:CLIENT.y-25,width:80,height:50,rx:'8',
-      fill:'#1a1d27',stroke:'#2e3148','stroke-width':'1.5'}));
+      fill:'#1a1d27',stroke:'#555a7a','stroke-width':'1.5'}));
     svg.appendChild(el('text',{x:CLIENT.x+20,y:CLIENT.y,'text-anchor':'middle','dominant-baseline':'middle',
-      fill:'#e8eaf6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+      fill:'#b0b3c6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
 
     // mode label
     const modeColors={sync:'#43e97b',async:'#ffd700',failover:'#ff6584'};

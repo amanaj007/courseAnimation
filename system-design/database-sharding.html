@@ -97,12 +97,12 @@
     svg.appendChild(el('text', { x:ROUTER.x, y:ROUTER.y+17, 'text-anchor':'middle', 'dominant-baseline':'middle',
       fill:'#a09cf7', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Query Router'));
     svg.appendChild(el('text', { x:ROUTER.x, y:ROUTER.y+33, 'text-anchor':'middle', 'dominant-baseline':'middle',
-      fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, strategy === 'range' ? 'Range strategy' : strategy === 'hash' ? 'Hash strategy' : 'Directory strategy'));
+      fill:'#b0b3c6', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, strategy === 'range' ? 'Range strategy' : strategy === 'hash' ? 'Hash strategy' : 'Directory strategy'));
 
     // shard lines
     SHARDS.forEach(s => {
       svg.appendChild(el('line', { x1:ROUTER.x, y1:ROUTER.y+ROUTER.h, x2:s.x, y2:s.y-30,
-        stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3' }));
+        stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3' }));
     });
 
     // shard nodes
@@ -113,10 +113,10 @@
       g.appendChild(el('text', { x:s.x, y:s.y-8, 'text-anchor':'middle', 'dominant-baseline':'middle',
         fill:s.color, 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, s.label));
       g.appendChild(el('text', { x:s.x, y:s.y+10, 'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif",
+        fill:'#b0b3c6', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif",
         id:`shard-range-${i}` }, s.range));
       g.appendChild(el('text', { x:s.x, y:s.y+24, 'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif",
+        fill:'#b0b3c6', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif",
         id:`shard-count-${i}` }, `${shardCounts[i]} queries`));
       svg.appendChild(g);
     });

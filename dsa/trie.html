@@ -133,7 +133,7 @@
         const cp=pos[nodeId(child)];if(!cp)return;
         const isEdgeHL=path.includes(child.ch);
         svg.appendChild(mkEl('line',{x1:p.x,y1:p.y,x2:cp.x,y2:cp.y,
-          stroke:isEdgeHL?'#6c63ff':'#2e3148','stroke-width':isEdgeHL?2:1.5}));
+          stroke:isEdgeHL?'#6c63ff':'#555a7a','stroke-width':isEdgeHL?2:1.5}));
         drawNode(child);
       });
       const isPathNode=path.length&&path.some((_,i)=>getPathAt(root,path.slice(0,i+1))===node);

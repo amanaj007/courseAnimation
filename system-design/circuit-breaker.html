@@ -94,11 +94,11 @@
     const col=STATE_COLOR[cbState];
 
     // Client
-    svg.appendChild(el('rect',{x:30,y:78,width:90,height:44,rx:'8',fill:'#1a1d27',stroke:'#2e3148','stroke-width':'1.5'}));
-    svg.appendChild(el('text',{x:75,y:105,'text-anchor':'middle','dominant-baseline':'middle',fill:'#e8eaf6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
+    svg.appendChild(el('rect',{x:30,y:78,width:90,height:44,rx:'8',fill:'#1a1d27',stroke:'#555a7a','stroke-width':'1.5'}));
+    svg.appendChild(el('text',{x:75,y:105,'text-anchor':'middle','dominant-baseline':'middle',fill:'#b0b3c6','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Client'));
 
     // wire client → breaker
-    svg.appendChild(el('line',{x1:120,y1:100,x2:220,y2:100,stroke:'#2e3148','stroke-width':'2'}));
+    svg.appendChild(el('line',{x1:120,y1:100,x2:220,y2:100,stroke:'#555a7a','stroke-width':'2'}));
 
     // Circuit Breaker box
     const bx=220,by=60,bw=160,bh=80;
@@ -123,9 +123,9 @@
 
     // failure dots
     for(let i=0;i<FAILURE_THRESHOLD;i++){
-      svg.appendChild(el('circle',{cx:bx+30+i*30,cy:by+bh+18,r:'7',fill:i<failures?'#ff6584':'#2e3148',stroke:i<failures?'#ff6584':'#444','stroke-width':'1.5'}));
+      svg.appendChild(el('circle',{cx:bx+30+i*30,cy:by+bh+18,r:'7',fill:i<failures?'#ff6584':'#333750',stroke:i<failures?'#ff6584':'#444','stroke-width':'1.5'}));
     }
-    svg.appendChild(el('text',{x:bx+bw/2,y:by+bh+32,'text-anchor':'middle',fill:'#8b8fa8','font-size':'8','font-family':"'Segoe UI',system-ui,sans-serif"},`${failures}/${FAILURE_THRESHOLD} failures`));
+    svg.appendChild(el('text',{x:bx+bw/2,y:by+bh+32,'text-anchor':'middle',fill:'#b0b3c6','font-size':'8','font-family':"'Segoe UI',system-ui,sans-serif"},`${failures}/${FAILURE_THRESHOLD} failures`));
 
     // wire breaker → service
     if(cbState!=='open'){
@@ -137,7 +137,7 @@
     // Service
     svg.appendChild(el('rect',{x:480,y:72,width:110,height:56,rx:'8',fill:'#1a1d27',stroke:cbState==='open'?'#ff6584':'#43e97b','stroke-width':'1.5'}));
     svg.appendChild(el('text',{x:535,y:98,'text-anchor':'middle','dominant-baseline':'middle',fill:cbState==='open'?'#ff6584':'#43e97b','font-size':'11','font-weight':'700','font-family':"'Segoe UI',system-ui,sans-serif"},'Downstream'));
-    svg.appendChild(el('text',{x:535,y:114,'text-anchor':'middle','dominant-baseline':'middle',fill:'#8b8fa8','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},cbState==='open'?'⚠ Unhealthy':'✓ Service'));
+    svg.appendChild(el('text',{x:535,y:114,'text-anchor':'middle','dominant-baseline':'middle',fill:'#b0b3c6','font-size':'9','font-family':"'Segoe UI',system-ui,sans-serif"},cbState==='open'?'⚠ Unhealthy':'✓ Service'));
 
     // packet
     svg.appendChild(el('circle',{id:'cb-pkt',cx:'-50',cy:'-50',r:'8',fill:'#ffd700',opacity:'0'}));

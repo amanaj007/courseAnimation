@@ -154,20 +154,20 @@
       if(!na||!nb)return;
       const line=document.createElementNS(NS,'line');
       line.setAttribute('x1',na.x);line.setAttribute('y1',na.y);line.setAttribute('x2',nb.x);line.setAttribute('y2',nb.y);
-      line.setAttribute('stroke','#2e3148');line.setAttribute('stroke-width','1.5');svg.appendChild(line);
+      line.setAttribute('stroke','#555a7a');line.setAttribute('stroke-width','1.5');svg.appendChild(line);
     });
     fibNodes.forEach(node=>{
       const cached=s.memo&&s.memo[node.n]!==undefined;
       const isCurrent=s.n===node.n;
-      const color=isCurrent?'#ffd700':cached?'#43e97b':'#2e3148';
-      const stroke=isCurrent?'#ffd700':cached?'#43e97b':'#6c63ff';
+      const color=isCurrent?'#ffd700':cached?'#43e97b':'#1a1d27';
+      const stroke=isCurrent?'#ffd700':cached?'#43e97b':'#555a7a';
       const circ=document.createElementNS(NS,'circle');
       circ.setAttribute('cx',node.x);circ.setAttribute('cy',node.y);circ.setAttribute('r','20');
       circ.setAttribute('fill',color);circ.setAttribute('stroke',stroke);circ.setAttribute('stroke-width','2');
       const lbl=document.createElementNS(NS,'text');
       lbl.setAttribute('x',node.x);lbl.setAttribute('y',node.y-4);
       lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','middle');
-      lbl.setAttribute('fill',isCurrent?'#1a1d27':cached?'#1a1d27':'#e8eaf6');
+      lbl.setAttribute('fill',isCurrent?'#1a1d27':cached?'#1a1d27':'#b0b3c6');
       lbl.setAttribute('font-size','10');lbl.setAttribute('font-weight','700');
       lbl.setAttribute('font-family',"'Segoe UI',system-ui,sans-serif");
       lbl.textContent=`f(${node.n})`;

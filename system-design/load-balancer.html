@@ -34,9 +34,9 @@
 
     .node-label {
       font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: 13px;
-      font-weight: 600;
-      fill: #e8eaf6;
+      font-size: 14px;
+      font-weight: 700;
+      fill: #b0b3c6;
       text-anchor: middle;
       dominant-baseline: middle;
       pointer-events: none;
@@ -44,8 +44,8 @@
 
     .node-sub {
       font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: 10px;
-      fill: #8b8fa8;
+      font-size: 11px;
+      fill: #a8adc6;
       text-anchor: middle;
       dominant-baseline: middle;
       pointer-events: none;
@@ -53,7 +53,7 @@
 
     /* packet dot */
     .packet {
-      r: 7;
+      r: 9;
     }
 
     /* server load bars */
@@ -62,6 +62,12 @@
     }
     .load-bar-fill {
       rx: 3; ry: 3;
+    }
+
+    @media (max-width: 600px) {
+      .node-label { font-size: 16px; }
+      .node-sub   { font-size: 13px; }
+      .packet     { r: 11; }
     }
 
     /* legend */
@@ -133,67 +139,67 @@
         <svg id="lb-svg" viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L8,3 z" fill="#2e3148"/>
+              <path d="M0,0 L0,6 L8,3 z" fill="#b0b3c6"/>
             </marker>
           </defs>
 
           <!-- connection lines (drawn behind nodes) -->
           <!-- client → lb -->
           <line id="line-client-lb" x1="130" y1="170" x2="310" y2="170"
-                stroke="#2e3148" stroke-width="2" stroke-dasharray="6 4"
+                stroke="#ffd700" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"
                 marker-end="url(#arrow)"/>
           <!-- lb → servers -->
           <line id="line-lb-s0" x1="510" y1="170" x2="640" y2="80"
-                stroke="#2e3148" stroke-width="2" stroke-dasharray="6 4"
+                stroke="#6c63ff" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"
                 marker-end="url(#arrow)"/>
           <line id="line-lb-s1" x1="510" y1="170" x2="640" y2="170"
-                stroke="#2e3148" stroke-width="2" stroke-dasharray="6 4"
+                stroke="#ff6584" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"
                 marker-end="url(#arrow)"/>
           <line id="line-lb-s2" x1="510" y1="170" x2="640" y2="260"
-                stroke="#2e3148" stroke-width="2" stroke-dasharray="6 4"
+                stroke="#43e97b" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"
                 marker-end="url(#arrow)"/>
 
           <!-- CLIENT node -->
           <rect x="20" y="140" width="110" height="60" rx="12" ry="12"
-                fill="#1a1d27" stroke="#2e3148" stroke-width="2"/>
-          <text x="75" y="164" class="node-label">Client</text>
-          <text x="75" y="182" class="node-sub">Browser / App</text>
+                fill="#1a1d27" stroke="#ffd700" stroke-width="2"/>
+          <text x="75" y="162" class="node-label" fill="#ffd700">Client</text>
+          <text x="75" y="180" class="node-sub" fill="#e2c97a">Browser / App</text>
 
           <!-- LOAD BALANCER node -->
           <rect x="320" y="130" width="130" height="80" rx="12" ry="12"
                 fill="#1a1d27" stroke="#6c63ff" stroke-width="2.5"/>
-          <text x="385" y="160" class="node-label" fill="#a09cf7">Load Balancer</text>
-          <text x="385" y="178" class="node-sub" id="lb-algo-label">Round Robin</text>
-          <text x="385" y="194" class="node-sub" id="lb-req-count">Requests: 0</text>
+          <text x="385" y="158" class="node-label" fill="#a09cf7">Load Balancer</text>
+          <text x="385" y="177" class="node-sub" fill="#b8b3f0" id="lb-algo-label">Round Robin</text>
+          <text x="385" y="194" class="node-sub" fill="#b8b3f0" id="lb-req-count">Requests: 0</text>
 
           <!-- SERVER nodes -->
           <!-- S0 -->
           <rect id="srv-rect-0" x="660" y="50" width="140" height="60" rx="12" ry="12"
-                fill="#1a1d27" stroke="#2e3148" stroke-width="2"/>
-          <text x="730" y="73" class="node-label">Server A</text>
-          <text x="730" y="89" class="node-sub" id="srv-sub-0">Requests: 0</text>
+                fill="#1a1d27" stroke="#6c63ff" stroke-width="2"/>
+          <text x="730" y="71" class="node-label" fill="#a09cf7">Server A</text>
+          <text x="730" y="89" class="node-sub" fill="#8a84d9" id="srv-sub-0">Requests: 0</text>
           <!-- load bar bg -->
-          <rect x="665" y="103" width="130" height="6" rx="3" ry="3" fill="#2e3148"/>
-          <rect id="lb-fill-0" x="665" y="103" width="0" height="6" rx="3" ry="3" fill="#6c63ff"/>
+          <rect x="665" y="103" width="130" height="8" rx="4" ry="4" fill="#333750"/>
+          <rect id="lb-fill-0" x="665" y="103" width="0" height="8" rx="4" ry="4" fill="#6c63ff"/>
 
           <!-- S1 -->
           <rect id="srv-rect-1" x="660" y="140" width="140" height="60" rx="12" ry="12"
-                fill="#1a1d27" stroke="#2e3148" stroke-width="2"/>
-          <text x="730" y="163" class="node-label">Server B</text>
-          <text x="730" y="179" class="node-sub" id="srv-sub-1">Requests: 0</text>
-          <rect x="665" y="193" width="130" height="6" rx="3" ry="3" fill="#2e3148"/>
-          <rect id="lb-fill-1" x="665" y="193" width="0" height="6" rx="3" ry="3" fill="#ff6584"/>
+                fill="#1a1d27" stroke="#ff6584" stroke-width="2"/>
+          <text x="730" y="161" class="node-label" fill="#ff8da5">Server B</text>
+          <text x="730" y="179" class="node-sub" fill="#d9627c" id="srv-sub-1">Requests: 0</text>
+          <rect x="665" y="193" width="130" height="8" rx="4" ry="4" fill="#333750"/>
+          <rect id="lb-fill-1" x="665" y="193" width="0" height="8" rx="4" ry="4" fill="#ff6584"/>
 
           <!-- S2 -->
           <rect id="srv-rect-2" x="660" y="230" width="140" height="60" rx="12" ry="12"
-                fill="#1a1d27" stroke="#2e3148" stroke-width="2"/>
-          <text x="730" y="253" class="node-label">Server C</text>
-          <text x="730" y="269" class="node-sub" id="srv-sub-2">Requests: 0</text>
-          <rect x="665" y="283" width="130" height="6" rx="3" ry="3" fill="#2e3148"/>
-          <rect id="lb-fill-2" x="665" y="283" width="0" height="6" rx="3" ry="3" fill="#43e97b"/>
+                fill="#1a1d27" stroke="#43e97b" stroke-width="2"/>
+          <text x="730" y="251" class="node-label" fill="#6ef0a0">Server C</text>
+          <text x="730" y="269" class="node-sub" fill="#3cc96a" id="srv-sub-2">Requests: 0</text>
+          <rect x="665" y="283" width="130" height="8" rx="4" ry="4" fill="#333750"/>
+          <rect id="lb-fill-2" x="665" y="283" width="0" height="8" rx="4" ry="4" fill="#43e97b"/>
 
           <!-- Animated packet -->
-          <circle id="packet" cx="-50" cy="170" r="7" fill="#ffd700" opacity="0"/>
+          <circle id="packet" cx="-50" cy="170" r="9" fill="#ffd700" opacity="0"/>
         </svg>
       </div>
     </div>
@@ -206,9 +212,9 @@
     </div>
 
     <div class="stats-row">
-      <div class="stat-chip">Server A: <strong id="chip-0">0 req</strong></div>
-      <div class="stat-chip">Server B: <strong id="chip-1">0 req</strong></div>
-      <div class="stat-chip">Server C: <strong id="chip-2">0 req</strong></div>
+      <div class="stat-chip"><span style="color:#a09cf7">Server A:</span> <strong id="chip-0" style="color:#6c63ff">0 req</strong></div>
+      <div class="stat-chip"><span style="color:#ff8da5">Server B:</span> <strong id="chip-1" style="color:#ff6584">0 req</strong></div>
+      <div class="stat-chip"><span style="color:#6ef0a0">Server C:</span> <strong id="chip-2" style="color:#43e97b">0 req</strong></div>
     </div>
 
     <div class="controls">
@@ -350,7 +356,7 @@
               // pulse on server
               gsap.fromTo(srvRects[srv],
                 { attr: { stroke: '#fff' } },
-                { attr: { stroke: '#2e3148' }, duration: 0.5,
+                { attr: { stroke: serverColors[srv] }, duration: 0.5,
                   onStart: () => {
                     srvRects[srv].setAttribute('stroke', '#fff');
                     reqCounts[srv]++;
@@ -395,11 +401,12 @@
       totalReqs = 0;
       gsap.set(packet, { opacity: 0 });
       lbReqLabel.textContent = 'Requests: 0';
+      const srvStrokeColors = ['#6c63ff', '#ff6584', '#43e97b'];
       [0, 1, 2].forEach(i => {
         srvSubs[i].textContent = 'Requests: 0';
         chips[i].textContent   = '0 req';
         gsap.to(lbFills[i], { attr: { width: 0 }, duration: 0.3 });
-        srvRects[i].setAttribute('stroke', '#2e3148');
+        srvRects[i].setAttribute('stroke', srvStrokeColors[i]);
       });
       infoBox.innerHTML = 'Press <strong>Send Request</strong> to send a client request through the load balancer.';
     });

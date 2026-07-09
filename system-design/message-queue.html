@@ -74,7 +74,7 @@
     // defs
     const defs = el('defs', {});
     const mk = el('marker', { id:'mkar', markerWidth:'8', markerHeight:'8', refX:'6', refY:'3', orient:'auto' });
-    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#2e3148' }));
+    mk.appendChild(el('path', { d:'M0,0 L0,6 L8,3 z', fill:'#555a7a' }));
     defs.appendChild(mk);
     svg.appendChild(defs);
 
@@ -82,7 +82,7 @@
       // Producer
       svg.appendChild(el('rect', { x:20, y:100, width:110, height:60, rx:'10', fill:'#1a1d27', stroke:'#6c63ff', 'stroke-width':'2' }));
       svg.appendChild(el('text', { x:75, y:124, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#a09cf7', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Producer'));
-      svg.appendChild(el('text', { x:75, y:142, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'sends events'));
+      svg.appendChild(el('text', { x:75, y:142, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'sends events'));
 
       // Queue box
       svg.appendChild(el('rect', { x:220, y:80, width:320, height:100, rx:'12', fill:'#1a1d27', stroke:'#ffd700', 'stroke-width':'2', id:'queue-box' }));
@@ -90,49 +90,49 @@
       // queue slots
       for (let i = 0; i < 5; i++) {
         svg.appendChild(el('rect', { x:228 + i*58, y:106, width:50, height:52, rx:'6', fill:'#242736',
-          stroke:'#2e3148', 'stroke-width':'1', id:`mq-slot-${i}` }));
+          stroke:'#555a7a', 'stroke-width':'1', id:`mq-slot-${i}` }));
         svg.appendChild(el('text', { x:253 + i*58, y:132, 'text-anchor':'middle', 'dominant-baseline':'middle',
-          fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`mq-slot-lbl-${i}` }, ''));
+          fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`mq-slot-lbl-${i}` }, ''));
       }
 
       // Consumer
       svg.appendChild(el('rect', { x:620, y:100, width:120, height:60, rx:'10', fill:'#1a1d27', stroke:'#43e97b', 'stroke-width':'2' }));
       svg.appendChild(el('text', { x:680, y:124, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#43e97b', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Consumer'));
-      svg.appendChild(el('text', { x:680, y:142, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'processes events'));
+      svg.appendChild(el('text', { x:680, y:142, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'processes events'));
 
       // arrows
-      svg.appendChild(el('line', { x1:130, y1:130, x2:218, y2:130, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
-      svg.appendChild(el('line', { x1:542, y1:130, x2:618, y2:130, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+      svg.appendChild(el('line', { x1:130, y1:130, x2:218, y2:130, stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+      svg.appendChild(el('line', { x1:542, y1:130, x2:618, y2:130, stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
 
       // counters
-      svg.appendChild(el('text', { x:75, y:200, 'text-anchor':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'pub-count' }, `Published: ${publishedCount}`));
-      svg.appendChild(el('text', { x:680, y:200, 'text-anchor':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'con-count' }, `Consumed: ${consumedCount}`));
+      svg.appendChild(el('text', { x:75, y:200, 'text-anchor':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'pub-count' }, `Published: ${publishedCount}`));
+      svg.appendChild(el('text', { x:680, y:200, 'text-anchor':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'con-count' }, `Consumed: ${consumedCount}`));
 
     } else {
       // PUB-SUB
       // Publisher
       svg.appendChild(el('rect', { x:20, y:110, width:110, height:50, rx:'10', fill:'#1a1d27', stroke:'#6c63ff', 'stroke-width':'2' }));
       svg.appendChild(el('text', { x:75, y:130, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#a09cf7', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Publisher'));
-      svg.appendChild(el('text', { x:75, y:148, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'topic: orders'));
+      svg.appendChild(el('text', { x:75, y:148, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'topic: orders'));
 
       // Broker
       svg.appendChild(el('rect', { x:290, y:100, width:120, height:70, rx:'10', fill:'#1a1d27', stroke:'#ffd700', 'stroke-width':'2' }));
       svg.appendChild(el('text', { x:350, y:126, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#ffd700', 'font-size':'12', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Broker'));
-      svg.appendChild(el('text', { x:350, y:144, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Kafka / RabbitMQ'));
-      svg.appendChild(el('text', { x:350, y:158, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'8', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'broker-count-lbl' }, `msgs: ${messageQueue.length}`));
+      svg.appendChild(el('text', { x:350, y:144, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif" }, 'Kafka / RabbitMQ'));
+      svg.appendChild(el('text', { x:350, y:158, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#b0b3c6', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:'broker-count-lbl' }, `msgs: ${messageQueue.length}`));
 
       // Subscribers
       const subs = ['Email Svc', 'Analytics', 'Inventory'];
       const colors = ['#43e97b', '#ff6584', '#6c63ff'];
       subs.forEach((s, i) => {
         const y = 50 + i * 80;
-        svg.appendChild(el('line', { x1:410, y1:135, x2:548, y2: y+25, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+        svg.appendChild(el('line', { x1:410, y1:135, x2:548, y2: y+25, stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
         svg.appendChild(el('rect', { x:550, y, width:110, height:50, rx:'10', fill:'#1a1d27', stroke:colors[i], 'stroke-width':'1.5', id:`sub-rect-${i}` }));
         svg.appendChild(el('text', { x:605, y: y+20, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:colors[i], 'font-size':'11', 'font-weight':'700', 'font-family':"'Segoe UI',system-ui,sans-serif" }, s));
-        svg.appendChild(el('text', { x:605, y: y+36, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#8b8fa8', 'font-size':'9', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`sub-count-${i}` }, '0 msgs'));
+        svg.appendChild(el('text', { x:605, y: y+36, 'text-anchor':'middle', 'dominant-baseline':'middle', fill:'#b0b3c6', 'font-size':'10', 'font-family':"'Segoe UI',system-ui,sans-serif", id:`sub-count-${i}` }, '0 msgs'));
       });
 
-      svg.appendChild(el('line', { x1:130, y1:135, x2:288, y2:135, stroke:'#2e3148', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
+      svg.appendChild(el('line', { x1:130, y1:135, x2:288, y2:135, stroke:'#555a7a', 'stroke-width':'1.5', 'stroke-dasharray':'5 3', 'marker-end':'url(#mkar)' }));
     }
 
     // packet
@@ -155,7 +155,7 @@
         lbl.setAttribute('fill', '#a09cf7');
       } else {
         slot.setAttribute('fill', '#242736');
-        slot.setAttribute('stroke', '#2e3148');
+        slot.setAttribute('stroke', '#555a7a');
         lbl.textContent = '';
       }
     }
