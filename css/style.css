@@ -173,6 +173,13 @@ nav ul a:hover {
   position: relative;
 }
 
+/* ── SVG responsive scaling inside .stage ── */
+.stage svg {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
 .controls {
   display: flex;
   gap: 0.75rem;
@@ -253,6 +260,7 @@ footer {
 svg {
   max-width: 100%;
   height: auto;
+  overflow: visible;
 }
 
 /* ── Touch-friendly buttons ── */
@@ -305,6 +313,8 @@ svg {
     padding: 1.25rem 0.75rem;
     min-height: 220px;
     border-radius: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .controls {
@@ -395,6 +405,13 @@ svg {
     padding: 1rem 0.5rem;
     min-height: 180px;
     border-radius: 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Scale down SVGs on very small screens instead of scrolling */
+  .stage svg {
+    min-width: 0 !important;
   }
 
   .controls {
@@ -421,7 +438,6 @@ svg {
 }
 
 /* ── Utility: overflow-x scroll for wide content on mobile ── */
-.stage svg,
 .stage .bar-wrap,
 .stage .sw-row,
 .stage .tp-row,

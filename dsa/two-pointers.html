@@ -6,8 +6,8 @@
   <title>Two Pointers — DSA Animation</title>
   <link rel="stylesheet" href="../css/style.css" />
   <style>
-    .tp-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-bottom:2rem; }
-    .tp-cell { width:50px; height:50px; border-radius:9px; display:flex; flex-direction:column;
+    .tp-row { display:flex; gap:5px; justify-content:center; flex-wrap:nowrap; margin-bottom:2rem; }
+    .tp-cell { width:50px; min-width:0; flex-shrink:1; aspect-ratio:1; border-radius:9px; display:flex; flex-direction:column;
       align-items:center; justify-content:center; border:2px solid var(--border);
       background:var(--surface2); font-size:1rem; font-weight:700; color:var(--text); position:relative; }
     .tp-cell .cidx { position:absolute; bottom:-20px; font-size:0.62rem; color:var(--text-muted); }
@@ -15,8 +15,8 @@
     .tp-cell.right  { border-color:#ff6584; background:rgba(255,101,132,0.15); color:#ff6584; }
     .tp-cell.found  { border-color:#43e97b; background:rgba(67,233,123,0.15); color:#43e97b; }
     .tp-cell.skip   { opacity:0.3; }
-    .ptr-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-bottom:0.5rem; }
-    .ptr-slot { width:50px; height:20px; display:flex; align-items:center; justify-content:center;
+    .ptr-row { display:flex; gap:5px; justify-content:center; flex-wrap:nowrap; margin-bottom:0.5rem; }
+    .ptr-slot { width:50px; min-width:0; flex-shrink:1; height:20px; display:flex; align-items:center; justify-content:center;
       font-size:0.65rem; font-weight:700; border-radius:4px; }
     .ptr-slot.L { background:rgba(108,99,255,0.2); color:#6c63ff; }
     .ptr-slot.R { background:rgba(255,101,132,0.2); color:#ff6584; }
@@ -29,7 +29,7 @@
       padding:0.3rem 0.8rem; font-size:0.8rem; color:var(--text-muted); }
     .stat-chip strong { color:var(--text); }
     @media (max-width: 480px) {
-      .tp-cell { width:36px; height:36px; font-size:0.8rem; }
+      .tp-cell { width:36px; font-size:0.8rem; }
       .tp-cell .cidx { font-size:0.52rem; bottom:-16px; }
       .tp-row { gap:3px; }
       .ptr-row { gap:3px; }

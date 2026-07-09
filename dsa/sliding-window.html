@@ -7,8 +7,8 @@
   <link rel="stylesheet" href="../css/style.css" />
   <style>
     .sw-wrapper { display:flex; flex-direction:column; align-items:center; gap:2rem; width:100%; }
-    .sw-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; }
-    .sw-cell { width:50px; height:50px; border-radius:9px; display:flex; flex-direction:column;
+    .sw-row { display:flex; gap:5px; justify-content:center; flex-wrap:nowrap; }
+    .sw-cell { width:50px; min-width:0; flex-shrink:1; aspect-ratio:1; border-radius:9px; display:flex; flex-direction:column;
       align-items:center; justify-content:center; border:2px solid var(--border);
       background:var(--surface2); font-size:1rem; font-weight:700; color:var(--text); position:relative; }
     .sw-cell .cidx { position:absolute; bottom:-20px; font-size:0.62rem; color:var(--text-muted); }
@@ -25,7 +25,7 @@
       background:var(--surface2); color:var(--text-muted); font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
     .tab-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,99,255,0.1); }
     @media (max-width: 480px) {
-      .sw-cell { width:36px; height:36px; font-size:0.8rem; }
+      .sw-cell { width:36px; font-size:0.8rem; }
       .sw-cell .cidx { font-size:0.52rem; bottom:-16px; }
       .sw-row { gap:3px; }
       .ptr-row { gap:3px; }
